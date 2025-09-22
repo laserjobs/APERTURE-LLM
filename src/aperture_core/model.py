@@ -6,7 +6,7 @@ from src.aperture_core.multi_modal_fusion import MultiModalFusionModule
 from src.aperture_core.dynamic_resolution import DRBlock
 from src.aperture_core.output_convergence import NonLinearOutputConvergence
 
-class APERTURE_LLM(nn.Module): # Renamed class to APERTURE_LLM
+class APERTURE_LLM(nn.Module):
     """
     The APERTURE-LLM: An Adaptive Perception & Resolution LLM - The Ultimate Generative Model.
     Abolishes tokenization by processing raw digital inputs.
@@ -50,15 +50,20 @@ class APERTURE_LLM(nn.Module): # Renamed class to APERTURE_LLM
         # 1. Encode Raw Digital Inputs
         text_features = self.raw_text_encoder(raw_text_input) # (B, T_text, raw_embed_dim)
         
+        # Handle image_features: Pass None if encoder not initialized or input is None
         image_features = None
         if self.raw_image_encoder is not None:
-            # Pass raw_image_input if provided, else an empty tensor for the dummy encoder to handle gracefully
-            image_features = self.raw_image_encoder(raw_image_input if raw_image_input is not None else torch.empty(raw_text_input.size(0), 0, device=raw_text_input.device))
+            # If no raw_image_input is provided, pass an empty tensor for the dummy encoder to handle gracefully
+            image_features = self.raw_image_encoder(
+                raw_image_input if raw_image_input is not None else torch.empty(raw_text_input.size(0), 0, device=raw_text_input.device)
+            )
         
+        # Handle audio_features similarly
         audio_features = None
         if self.raw_audio_encoder is not None:
-            # Pass raw_audio_input if provided, else an empty tensor for the dummy encoder to handle gracefully
-            audio_features = self.raw_audio_encoder(raw_audio_input if raw_audio_input is not None else torch.empty(raw_text_input.size(0), 0, device=raw_text_input.device))
+            audio_features = self.raw_audio_encoder(
+                raw_audio_input if raw_audio_input is not None else torch.empty(raw_text_input.size(0), 0, device=raw_text_input.device)
+            )
 
         # 2. Multi-Modal Fusion
         fused_features = self.multi_modal_fusion(text_features, image_features, audio_features) # (B, T_fused, embedding_dim)
