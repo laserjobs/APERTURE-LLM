@@ -114,3 +114,62 @@ To train a Prometheus model:
 
 ```bash
 python scripts/train_model.py --config config/model_config.yaml
+```
+
+The `model_config.yaml` file allows extensive customization of raw encoding operator settings, dynamic resolution modulation parameters, and output convergence thresholds. Training will require vast, multi-modal datasets of raw digital inputs.
+
+### Inference
+
+To generate output from raw digital input using a trained model:
+
+```bash
+# Example: Raw Text Input
+python scripts/infer_model.py \
+    --model_path path/to/your/model.pt \
+    --raw_text_input "The ancient, dilapidated mansion, shrouded in thick ivy and eerie whispers, silently watched the moonlit street, its decaying grandeur a forgotten sentinel of time." \
+    --focus_strength 0.8 \
+    --output_modality text
+
+# Example: Raw Image Input (placeholder for actual image file input)
+python scripts/infer_model.py \
+    --model_path path/to/your/model.pt \
+    --raw_image_path path/to/your/image.png \
+    --prompt "Describe the main objects and their colors." \
+    --focus_strength 0.9 \
+    --output_modality text
+```
+
+The `--focus_strength` parameter (0.0 to 1.0) directly controls the "Non-linear Output Convergence," influencing the decisiveness and detail-level of the generated output. Higher `focus_strength` leads to sharper, more definitive cognitive resolutions.
+
+### Evaluation
+
+To evaluate a trained model on comprehensive multi-modal benchmark datasets:
+
+```bash
+python scripts/evaluate_model.py \
+    --model_path path/to/your/model.pt \
+    --benchmark_suite M3E # Multi-Modal, Multi-Resolution Evaluation Suite (custom benchmark)
+```
+
+## 7. Experiments & Benchmarks
+
+Prometheus will be rigorously evaluated against a suite of novel benchmarks designed to test its unique capabilities, far beyond traditional LLM metrics:
+
+*   **Raw Digital Comprehension:** Measuring understanding directly from raw character streams, noisy pixels, and complex audio waveforms without any tokenization preprocessing.
+*   **Adaptive Efficiency & Latency:** Benchmarking computational resource allocation (FLOPs, memory) and inference speed across tasks requiring varying "resolution" levels.
+*   **Robustness to Adversarial Noise:** Testing resilience against minor input perturbations (e.g., typos, image distortions, audio glitches) that would invariably break tokenization-based models.
+*   **Cross-Modal Coherence & Reasoning:** Evaluating the seamless integration and logical reasoning across fused raw multi-modal inputs, a core strength of its unified architecture.
+*   **Controlled Generative Behavior:** Quantifying the ability of the "Non-linear Output Convergence" to produce demonstrably decisive or exploratory outputs based on the `focus_strength` parameter.
+*   **Zero-Shot / Few-Shot Learning on Novel Concepts:** Assessing its ability to comprehend new words or visual/auditory patterns without prior explicit token definitions, showcasing its true generality.
+
+## 8. Contributing
+
+Prometheus is a truly ambitious and open-ended project. We invite the brightest minds in AI, machine learning, and computational science to contribute to this groundbreaking endeavor. If you are passionate about building the next generation of intelligent systems, please refer to our (future) `CONTRIBUTING.md` for detailed guidelines.
+
+## 9. License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+## 10. Contact
+
+For questions, collaborations, or discussions, please open an issue in this repository.
