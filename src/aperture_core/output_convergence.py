@@ -1,11 +1,11 @@
-# src/prometheus_core/output_convergence.py
+# src/aperture_core/output_convergence.py
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 class NonLinearOutputConvergence(nn.Module):
     """
-    Prometheus's output head, designed for non-linear output convergence.
+    APERTURE-LLM's output head, designed for non-linear output convergence.
     'focus_strength' (0.0 to 1.0) influences sampling strategy,
     simulating 'Conceptual Avalanche Collapse'.
     """
