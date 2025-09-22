@@ -1,4 +1,4 @@
-# src/prometheus_core/multi_modal_fusion.py
+# src/aperture_core/multi_modal_fusion.py
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -46,7 +46,7 @@ class MultiModalFusionModule(nn.Module):
         if text_features is not None and text_features.numel() > 0:
             all_modal_features_to_fuse.append(self.text_proj(text_features))
         else:
-            raise ValueError("Text features cannot be empty in Prometheus prototype as it's the primary modality.")
+            raise ValueError("Text features cannot be empty in APERTURE-LLM prototype as it's the primary modality.")
 
         # Conditionally process image features
         if self.image_proj and image_features is not None and image_features.numel() > 0:
