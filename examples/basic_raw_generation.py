@@ -2,6 +2,7 @@
 import subprocess
 import os
 import shutil
+import sys # Import sys
 
 # Ensure we are in the root directory
 project_root = os.path.dirname(os.path.abspath(__file__)) + '/../'
@@ -9,8 +10,16 @@ os.chdir(project_root)
 
 # --- Configuration ---
 config_path = "src/config/model_config.yaml"
-model_file = "aperture_llm_model_epoch_5.pt" # Renamed model file to save
+model_file = "aperture_llm_model_epoch_5.pt"
 seed_value = 42 # Consistent seed for reproducibility
+
+# --- Prepare PYTHONPATH for subprocesses ---
+# Add the project root to the PYTHONPATH. This makes 'src' discoverable as a top-level package.
+current_python_path = os.environ.get('PYTHONPATH', '')
+# Ensure project_root is at the beginning of PYTHONPATH
+new_python_path = os.path.abspath(project_root) + os.pathsep + current_python_path
+subprocess_env = os.environ.copy()
+subprocess_env['PYTHONPATH'] = new_python_path
 
 # --- Clean up previous model file if it exists ---
 if os.path.exists(model_file):
@@ -20,8 +29,9 @@ if os.path.exists(model_file):
 print(f"--- Starting APERTURE-LLM Prototype Demonstration (Seed: {seed_value}) ---")
 
 print("\n--- Training APERTURE-LLM Prototype (this will generate a model file) ---")
-train_command = ["python", "src/scripts/train_model.py", "--config", config_path]
-train_result = subprocess.run(train_command, capture_output=True, text=True)
+# Use sys.executable to ensure the correct Python interpreter is used (e.g., from venv)
+train_command = [sys.executable, "src/scripts/train_model.py", "--config", config_path]
+train_result = subprocess.run(train_command, capture_output=True, text=True, env=subprocess_env) # Pass env
 print(train_result.stdout)
 if train_result.stderr:
     print("Training Errors:\n", train_result.stderr)
@@ -36,14 +46,14 @@ if not os.path.exists(model_file):
 print(f"\n--- Running Inference with low focus_strength (more exploratory) ---")
 print("Expected: More varied, potentially less coherent output due to higher temperature/top_p.")
 infer_command_low_focus = [
-    "python", "src/scripts/infer_model.py",
+    sys.executable, "src/scripts/infer_model.py", # Use sys.executable
     "--config", config_path,
     "--model_path", model_file,
     "--raw_text_input", "The future of AI is",
     "--focus_strength", "0.2",
     "--max_new_tokens", "50"
 ]
-infer_result_low = subprocess.run(infer_command_low_focus, capture_output=True, text=True)
+infer_result_low = subprocess.run(infer_command_low_focus, capture_output=True, text=True, env=subprocess_env) # Pass env
 print(infer_result_low.stdout)
 if infer_result_low.stderr:
     print("Low Focus Inference Errors:\n", infer_result_low.stderr)
@@ -51,21 +61,21 @@ if infer_result_low.stderr:
 print(f"\n--- Running Inference with high focus_strength (more decisive) ---")
 print("Expected: More repetitive or fixed output due to lower temperature/top_p, reflecting 'conceptual collapse'.")
 infer_command_high_focus = [
-    "python", "src/scripts/infer_model.py",
+    sys.executable, "src/scripts/infer_model.py", # Use sys.executable
     "--config", config_path,
     "--model_path", model_file,
     "--raw_text_input", "The future of AI is",
     "--focus_strength", "0.9",
     "--max_new_tokens", "50"
 ]
-infer_result_high = subprocess.run(infer_command_high_focus, capture_output=True, text=True)
+infer_result_high = subprocess.run(infer_command_high_focus, capture_output=True, text=True, env=subprocess_env) # Pass env
 print(infer_result_high.stdout)
 if infer_result_high.stderr:
     print("High Focus Inference Errors:\n", infer_result_high.stderr)
 
 print(f"\n--- Running a placeholder evaluation ---")
-eval_command = ["python", "src/scripts/evaluate_model.py", "--config", config_path, "--model_path", model_file]
-eval_result = subprocess.run(eval_command, capture_output=True, text=True)
+eval_command = [sys.executable, "src/scripts/evaluate_model.py", "--config", config_path, "--model_path", model_file] # Use sys.executable
+eval_result = subprocess.run(eval_command, capture_output=True, text=True, env=subprocess_env) # Pass env
 print(eval_result.stdout)
 if eval_result.stderr:
     print("Evaluation Errors:\n", eval_result.stderr)
