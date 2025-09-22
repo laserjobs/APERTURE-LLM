@@ -7,17 +7,18 @@ import os
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
-from aperture_core.model import APERTURE_LLM # Renamed import
-from aperture_core.utils import CharTokenizer
+from aperture_core.model import APERTURE_LLM
+from aperture_core.utils import CharTokenizer, set_seed # Import set_seed
 
 def evaluate(config, model_path, benchmark_suite):
+    set_seed(config.training.seed) # Set seed for consistent evaluation behavior
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     
     # 1. Load tokenizer and model
     tokenizer = CharTokenizer()
     config.model.vocab_size = tokenizer.vocab_size # Update vocab_size based on tokenizer
 
-    model = APERTURE_LLM(config).to(device) # Renamed class
+    model = APERTURE_LLM(config).to(device)
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.eval()
     print(f"Model loaded from {model_path}")
@@ -45,7 +46,7 @@ def evaluate(config, model_path, benchmark_suite):
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Evaluate APERTURE-LLM.") # Renamed description
+    parser = argparse.ArgumentParser(description="Evaluate APERTURE-LLM.")
     parser.add_argument('--config', type=str, default='src/config/model_config.yaml',
                         help='Path to the model configuration YAML file.')
     parser.add_argument('--model_path', type=str, required=True,
