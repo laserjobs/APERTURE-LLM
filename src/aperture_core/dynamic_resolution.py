@@ -1,4 +1,4 @@
-# src/prometheus_core/dynamic_resolution.py
+# src/aperture_core/dynamic_resolution.py
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -66,7 +66,7 @@ class DynamicResolutionAttention(nn.Module):
 
 class DRBlock(nn.Module):
     """
-    A single Prometheus block incorporating Dynamic Resolution Attention.
+    A single APERTURE-LLM block incorporating Dynamic Resolution Attention.
     Represents an 'Iterative Processing Block'.
     """
     def __init__(self, config):
