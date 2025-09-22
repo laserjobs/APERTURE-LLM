@@ -1,4 +1,4 @@
-# src/prometheus_core/utils.py
+# src/aperture_core/utils.py
 import torch
 
 # Simple char-level tokenizer for demonstration
