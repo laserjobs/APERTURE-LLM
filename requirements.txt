@@ -1,0 +1,6 @@
+# promethean-llm/requirements.txt
+torch
+numpy
+pyyaml
+tqdm
+sentencepiece # Optional: For comparison or simple char-level utilities
