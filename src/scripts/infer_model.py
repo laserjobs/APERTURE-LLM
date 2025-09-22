@@ -8,17 +8,18 @@ import os
 # Add src/aperture_core to the Python path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
-from aperture_core.model import APERTURE_LLM # Renamed import
-from aperture_core.utils import CharTokenizer
+from aperture_core.model import APERTURE_LLM
+from aperture_core.utils import CharTokenizer, set_seed # Import set_seed
 
 def infer(config, model_path, raw_text_input, focus_strength, max_new_tokens, output_modality):
+    set_seed(config.training.seed) # Set seed for consistent inference behavior
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     # 1. Load tokenizer and model
     tokenizer = CharTokenizer()
     config.model.vocab_size = tokenizer.vocab_size # Update vocab_size based on tokenizer
     
-    model = APERTURE_LLM(config).to(device) # Renamed class
+    model = APERTURE_LLM(config).to(device)
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.eval()
     print(f"Model loaded from {model_path}")
@@ -43,14 +44,14 @@ def infer(config, model_path, raw_text_input, focus_strength, max_new_tokens, ou
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Infer with APERTURE-LLM.") # Renamed description
+    parser = argparse.ArgumentParser(description="Infer with APERTURE-LLM.")
     parser.add_argument('--config', type=str, default='src/config/model_config.yaml',
                         help='Path to the model configuration YAML file.')
     parser.add_argument('--model_path', type=str, required=True,
                         help='Path to the trained model checkpoint.')
     parser.add_argument('--raw_text_input', type=str, default="The nature of consciousness is",
                         help='Raw text prompt for generation.')
-    parser.add_strength = '0.5'
+    parser.add_argument('--focus_strength', type=float, default=0.5,
                         help='Focus strength for non-linear output convergence (0.0 to 1.0).')
     parser.add_argument('--max_new_tokens', type=int, default=100,
                         help='Maximum number of new tokens to generate.')
@@ -73,6 +74,6 @@ if __name__ == "__main__":
 
     config.dynamic_resolution = SimpleNamespace(**config.dynamic_resolution)
     config.output_convergence = SimpleNamespace(**config.output_convergence)
-    config.training = SimpleNamespace(**config.training) # Not strictly needed for infer but good for consistency
+    config.training = SimpleNamespace(**config.training) # Used for seed here
 
     infer(config, args.model_path, args.raw_text_input, args.focus_strength, args.max_new_tokens, args.output_modality)
