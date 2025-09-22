@@ -1,4 +1,4 @@
-# APERTURE_LLM/requirements.txt
+# APERTURE-LLM/requirements.txt
 torch
 numpy
 pyyaml
