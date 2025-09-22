@@ -1,0 +1,36 @@
+# src/config/model_config.yaml
+model:
+  vocab_size: 256 # For raw bytes/chars (0-255 ASCII/Unicode subset)
+  embedding_dim: 128
+  num_layers: 4
+  num_heads: 8
+  block_size: 512 # Max input sequence length for raw encoder
+
+raw_encoder:
+  type: "text" # Primary encoder type for current prototype
+  text:
+    char_embed_dim: 32
+    multi_freq_components: 3 # For multi-frequency embeddings
+  # image: # Uncomment and configure for image processing
+  #   enabled: false # Set to true to enable image encoder
+  #   input_dim: 100 # Example: flattened image size (for prototype dummy)
+  # audio: # Uncomment and configure for audio processing
+  #   enabled: false # Set to true to enable audio encoder
+  #   input_dim: 100 # Example: audio segment size (for prototype dummy)
+
+dynamic_resolution:
+  min_res_scale: 0.1 # Minimum resolution scale (e.g., for attention dropout)
+  max_res_scale: 1.0 # Maximum resolution scale
+  threshold_for_boost: 0.5 # Focus strength threshold for resolution boost
+
+output_convergence:
+  convergence_temp_min: 0.1 # Minimum temperature for sampling (more decisive)
+  convergence_temp_max: 1.0 # Maximum temperature for sampling (more exploratory)
+  convergence_top_p_min: 0.1 # Minimum top_p for sampling
+  convergence_top_p_max: 0.9 # Maximum top_p for sampling
+  
+training:
+  learning_rate: 0.001
+  batch_size: 16
+  num_epochs: 5
+  eval_interval: 100
