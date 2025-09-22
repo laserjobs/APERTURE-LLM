@@ -7,8 +7,8 @@ import os
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
-from prometheus_core.model import Prometheus
-from prometheus_core.utils import CharTokenizer
+from aperture_core.model import APERTURE_LLM # Renamed import
+from aperture_core.utils import CharTokenizer
 
 def evaluate(config, model_path, benchmark_suite):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -17,7 +17,7 @@ def evaluate(config, model_path, benchmark_suite):
     tokenizer = CharTokenizer()
     config.model.vocab_size = tokenizer.vocab_size # Update vocab_size based on tokenizer
 
-    model = Prometheus(config).to(device)
+    model = APERTURE_LLM(config).to(device) # Renamed class
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.eval()
     print(f"Model loaded from {model_path}")
@@ -45,7 +45,7 @@ def evaluate(config, model_path, benchmark_suite):
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Evaluate Prometheus LLM.")
+    parser = argparse.ArgumentParser(description="Evaluate APERTURE-LLM.") # Renamed description
     parser.add_argument('--config', type=str, default='src/config/model_config.yaml',
                         help='Path to the model configuration YAML file.')
     parser.add_argument('--model_path', type=str, required=True,
