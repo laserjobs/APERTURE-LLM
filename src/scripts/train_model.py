@@ -8,20 +8,20 @@ from tqdm import tqdm
 import sys
 import os
 
-# Add src/prometheus_core to the Python path
+# Add src/aperture_core to the Python path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
-from prometheus_core.model import Prometheus
-from prometheus_core.utils import get_batch, CharTokenizer
+from aperture_core.model import APERTURE_LLM # Renamed import
+from aperture_core.utils import get_batch, CharTokenizer
 
 def train(config):
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = 'cuda'  if torch.cuda.is_available() else 'cpu'
     print(f"Using device: {device}")
 
     # 1. Load data and tokenizer
     # For prototype: use dummy data (e.g., repeating simple text)
     # In a real scenario, load large datasets of raw text/images/audio
-    dummy_text = "This is a simple text string for demonstration. Prometheus aims to be the best LLM available. " * 500
+    dummy_text = "This is a simple text string for demonstration. The APERTURE-LLM aims to be the best LLM available. " * 500
     tokenizer = CharTokenizer()
     data = torch.tensor(tokenizer.encode(dummy_text), dtype=torch.long)
     
@@ -31,7 +31,7 @@ def train(config):
     print(f"Dummy data size: {len(data)} characters")
 
     # 2. Initialize Model
-    model = Prometheus(config).to(device)
+    model = APERTURE_LLM(config).to(device) # Renamed class
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.training.learning_rate)
 
     # 3. Training Loop
@@ -60,13 +60,13 @@ def train(config):
             
         print("Training finished.")
         # 4. Save Model
-        torch.save(model.state_dict(), f"prometheus_model_epoch_{config.training.num_epochs}.pt")
-        print(f"Model saved to prometheus_model_epoch_{config.training.num_epochs}.pt")
+        torch.save(model.state_dict(), f"aperture_llm_model_epoch_{config.training.num_epochs}.pt") # Renamed model file
+        print(f"Model saved to aperture_llm_model_epoch_{config.training.num_epochs}.pt")
 
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Train Prometheus LLM.")
+    parser = argparse.ArgumentParser(description="Train APERTURE-LLM.") # Renamed description
     parser.add_argument('--config', type=str, default='src/config/model_config.yaml',
                         help='Path to the model configuration YAML file.')
     args = parser.parse_args()
