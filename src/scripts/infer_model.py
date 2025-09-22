@@ -5,11 +5,11 @@ from types import SimpleNamespace
 import sys
 import os
 
-# Add src/prometheus_core to the Python path
+# Add src/aperture_core to the Python path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
-from prometheus_core.model import Prometheus
-from prometheus_core.utils import CharTokenizer
+from aperture_core.model import APERTURE_LLM # Renamed import
+from aperture_core.utils import CharTokenizer
 
 def infer(config, model_path, raw_text_input, focus_strength, max_new_tokens, output_modality):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -18,7 +18,7 @@ def infer(config, model_path, raw_text_input, focus_strength, max_new_tokens, ou
     tokenizer = CharTokenizer()
     config.model.vocab_size = tokenizer.vocab_size # Update vocab_size based on tokenizer
     
-    model = Prometheus(config).to(device)
+    model = APERTURE_LLM(config).to(device) # Renamed class
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.eval()
     print(f"Model loaded from {model_path}")
@@ -43,14 +43,14 @@ def infer(config, model_path, raw_text_input, focus_strength, max_new_tokens, ou
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Infer with Prometheus LLM.")
+    parser = argparse.ArgumentParser(description="Infer with APERTURE-LLM.") # Renamed description
     parser.add_argument('--config', type=str, default='src/config/model_config.yaml',
                         help='Path to the model configuration YAML file.')
     parser.add_argument('--model_path', type=str, required=True,
                         help='Path to the trained model checkpoint.')
     parser.add_argument('--raw_text_input', type=str, default="The nature of consciousness is",
                         help='Raw text prompt for generation.')
-    parser.add_argument('--focus_strength', type=float, default=0.5,
+    parser.add_strength = '0.5'
                         help='Focus strength for non-linear output convergence (0.0 to 1.0).')
     parser.add_argument('--max_new_tokens', type=int, default=100,
                         help='Maximum number of new tokens to generate.')
