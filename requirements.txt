@@ -1,4 +1,4 @@
-# promethean-llm/requirements.txt
+# APERTURE_LLM/requirements.txt
 torch
 numpy
 pyyaml
