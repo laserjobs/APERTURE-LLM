@@ -57,6 +57,11 @@ class NonLinearOutputConvergence(nn.Module):
             # Ensure that the first token (highest probability) is never removed
             sorted_indices_to_remove[..., 0] = False 
             
+            # --- FIX STARTS HERE ---
+            # Extract the actual indices to remove from the sorted indices
+            indices_to_remove = sorted_indices[sorted_indices_to_remove]
+            # --- FIX ENDS HERE ---
+
             # Scatter the -inf values back to the original logits tensor
             logits = logits.scatter(dim=-1, index=indices_to_remove, value=float('-inf'))
 
