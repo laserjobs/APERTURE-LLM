@@ -1,14 +1,14 @@
-# src/prometheus_core/model.py
+# src/aperture_core/model.py
 import torch
 import torch.nn as nn
-from src.prometheus_core.raw_encoders import UniversalRawTextEncoder, UniversalRawImageEncoder, UniversalRawAudioEncoder
-from src.prometheus_core.multi_modal_fusion import MultiModalFusionModule
-from src.prometheus_core.dynamic_resolution import DRBlock
-from src.prometheus_core.output_convergence import NonLinearOutputConvergence
+from src.aperture_core.raw_encoders import UniversalRawTextEncoder, UniversalRawImageEncoder, UniversalRawAudioEncoder
+from src.aperture_core.multi_modal_fusion import MultiModalFusionModule
+from src.aperture_core.dynamic_resolution import DRBlock
+from src.aperture_core.output_convergence import NonLinearOutputConvergence
 
-class Prometheus(nn.Module):
+class APERTURE_LLM(nn.Module): # Renamed class to APERTURE_LLM
     """
-    The Prometheus LLM: A Paradigm Shift in AI - The Ultimate Generative Model.
+    The APERTURE-LLM: An Adaptive Perception & Resolution LLM - The Ultimate Generative Model.
     Abolishes tokenization by processing raw digital inputs.
     """
     def __init__(self, config):
@@ -40,7 +40,7 @@ class Prometheus(nn.Module):
         # 4. Non-linear Output Convergence Head
         self.output_head = NonLinearOutputConvergence(config)
 
-        print(f"Prometheus Model initialized with {sum(p.numel() for p in self.parameters())/1e6:.2f}M parameters")
+        print(f"APERTURE-LLM Model initialized with {sum(p.numel() for p in self.parameters())/1e6:.2f}M parameters")
 
     def forward(self, raw_text_input, raw_image_input=None, raw_audio_input=None, focus_strength=0.0):
         # raw_text_input: (B, T) tensor of raw character indices
