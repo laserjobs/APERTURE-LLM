@@ -9,14 +9,14 @@ os.chdir(project_root)
 
 # --- Configuration ---
 config_path = "src/config/model_config.yaml"
-model_file = "prometheus_model_epoch_5.pt" # Based on default num_epochs in config
+model_file = "aperture_llm_model_epoch_5.pt" # Renamed model file to save
 
 # --- Clean up previous model file if it exists ---
 if os.path.exists(model_file):
     print(f"Removing old model file: {model_file}")
     os.remove(model_file)
 
-print("--- Training Prometheus Prototype (this will generate a model file) ---")
+print("--- Training APERTURE-LLM Prototype (this will generate a model file) ---") # Renamed description
 train_command = ["python", "src/scripts/train_model.py", "--config", config_path]
 train_result = subprocess.run(train_command, capture_output=True, text=True)
 print(train_result.stdout)
@@ -65,5 +65,5 @@ print(eval_result.stdout)
 if eval_result.stderr:
     print("Evaluation Errors:\n", eval_result.stderr)
 
-print("\n--- Prometheus Prototype Demonstration Complete ---")
+print("\n--- APERTURE-LLM Prototype Demonstration Complete ---") # Renamed description
 print("NOTE: The generated text will likely be simple due to limited training data in this prototype.")
