@@ -62,7 +62,7 @@ Prometheus treats all inputs as a continuous "event-stream." Raw digital inputs,
 Prometheus explicitly monitors the Shannon Entropy of its internal representations and predicted output distributions. This "entropy-guided learning" allows the model to actively manage uncertainty. High entropy indicates cognitive "superposition" (exploring multiple possibilities), while low entropy signals a "conceptual collapse" (a confident, definite prediction). This mechanism contributes to both creative exploration and decisive output generation.
 
 ### Robust Ethical Alignment
-Prometheus is built on a foundation of rigorous ethical principles. Its design incorporates mechanisms for "Minimal Impact" (minimiz ing unintended biases, negative side effects, and resource wastage) and ensuring "Causal Integrity" (maintaining logical consistency, avoiding paradoxical outputs, and upholding factual coherence). These principles are embedded in its training objectives and inference constraints, fostering a truly responsible and trustworthy AI.
+Prometheus is built on a foundation of rigorous ethical principles. Its design incorporates mechanisms for "Minimal Impact" (minimizing unintended biases, negative side effects, and resource wastage) and ensuring "Causal Integrity" (maintaining logical consistency, avoiding paradoxical outputs, and upholding factual coherence). These principles are embedded in its training objectives and inference constraints, fostering a truly responsible and trustworthy AI.
 
 ## 3. Architecture Highlights: Engineering Cognition
 
