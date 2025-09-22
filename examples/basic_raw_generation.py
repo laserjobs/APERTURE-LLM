@@ -10,13 +10,16 @@ os.chdir(project_root)
 # --- Configuration ---
 config_path = "src/config/model_config.yaml"
 model_file = "aperture_llm_model_epoch_5.pt" # Renamed model file to save
+seed_value = 42 # Consistent seed for reproducibility
 
 # --- Clean up previous model file if it exists ---
 if os.path.exists(model_file):
     print(f"Removing old model file: {model_file}")
     os.remove(model_file)
 
-print("--- Training APERTURE-LLM Prototype (this will generate a model file) ---") # Renamed description
+print(f"--- Starting APERTURE-LLM Prototype Demonstration (Seed: {seed_value}) ---")
+
+print("\n--- Training APERTURE-LLM Prototype (this will generate a model file) ---")
 train_command = ["python", "src/scripts/train_model.py", "--config", config_path]
 train_result = subprocess.run(train_command, capture_output=True, text=True)
 print(train_result.stdout)
@@ -31,6 +34,7 @@ if not os.path.exists(model_file):
     exit(1)
 
 print(f"\n--- Running Inference with low focus_strength (more exploratory) ---")
+print("Expected: More varied, potentially less coherent output due to higher temperature/top_p.")
 infer_command_low_focus = [
     "python", "src/scripts/infer_model.py",
     "--config", config_path,
@@ -45,6 +49,7 @@ if infer_result_low.stderr:
     print("Low Focus Inference Errors:\n", infer_result_low.stderr)
 
 print(f"\n--- Running Inference with high focus_strength (more decisive) ---")
+print("Expected: More repetitive or fixed output due to lower temperature/top_p, reflecting 'conceptual collapse'.")
 infer_command_high_focus = [
     "python", "src/scripts/infer_model.py",
     "--config", config_path,
@@ -65,5 +70,7 @@ print(eval_result.stdout)
 if eval_result.stderr:
     print("Evaluation Errors:\n", eval_result.stderr)
 
-print("\n--- APERTURE-LLM Prototype Demonstration Complete ---") # Renamed description
-print("NOTE: The generated text will likely be simple due to limited training data in this prototype.")
+print("\n--- APERTURE-LLM Prototype Demonstration Complete ---")
+print("NOTE: The generated text will likely be simple and nonsensical in this prototype ")
+print("due to the minimal model size and dummy training data. ")
+print("The primary goal is to demonstrate the *execution flow* and *effect of focus_strength*.")
