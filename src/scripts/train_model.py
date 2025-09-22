@@ -63,3 +63,29 @@ def train(config):
     # 4. Save Model
     torch.save(model.state_dict(), f"aperture_llm_model_epoch_{config.training.num_epochs}.pt")
     print(f"Model saved to aperture_llm_model_epoch_{config.training.num_epochs}.pt")
+
+if __name__ == "__main__":
+    import argparse
+
+parser = argparse.ArgumentParser(description="Train APERTURE-LLM.")
+parser.add_argument('--config', type=str, default='src/config/model_config.yaml',
+                    help='Path to the model configuration YAML file.')
+args = parser.parse_args()
+
+with open(args.config, 'r') as f:
+    config_dict = yaml.safe_load(f)
+
+# Convert dict to SimpleNamespace for easy attribute access
+config = SimpleNamespace(**config_dict)
+config.model = SimpleNamespace(**config.model)
+config.raw_encoder = SimpleNamespace(**config.raw_encoder)
+config.raw_encoder.text = SimpleNamespace(**config.raw_encoder.text)
+# Ensure image/audio are SimpleNamespace if they exist, otherwise default to None
+config.raw_encoder.image = SimpleNamespace(**config.raw_encoder.image) if hasattr(config.raw_encoder, 'image') and config.raw_encoder.image else None
+config.raw_encoder.audio = SimpleNamespace(**config.raw_encoder.audio) if hasattr(config.raw_encoder, 'audio') and config.raw_encoder.audio else None
+
+config.dynamic_resolution = SimpleNamespace(**config.dynamic_resolution)
+config.output_convergence = SimpleNamespace(**config.output_convergence)
+config.training = SimpleNamespace(**config.training)
+
+train(config)
