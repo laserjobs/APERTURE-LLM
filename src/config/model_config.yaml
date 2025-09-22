@@ -34,3 +34,4 @@ training:
   batch_size: 16
   num_epochs: 5
   eval_interval: 100
+  seed: 42 # New: Seed for reproducibility
