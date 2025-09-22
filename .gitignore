@@ -1,0 +1,31 @@
+# promethean-llm/.gitignore
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python/
+build/
+dist/
+*.egg-info/
+.env
+venv/
+
+# PyTorch
+*.pt
+*.pth
+runs/ # TensorBoard logs
+
+# Data
+data/processed_features/
+data/raw_datasets/ # If too large, list specific subfolders or files
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# OS files
+.DS_Store
+.vscode/
+
+# Logs
+*.log
