@@ -64,6 +64,7 @@ class UniversalRawTextEncoder(nn.Module):
 class UniversalRawImageEncoder(nn.Module):
     def __init__(self, config):
         super().__init__()
+        self.config = config # Added to access config.model.embedding_dim for empty tensor creation
         # Placeholder: In a full model, this would be a vision transformer or CNN for raw pixels
         # For a prototype, use a dummy linear layer that takes a flattened image.
         # config.image_input_dim would be H*W*C of an example image.
@@ -82,6 +83,7 @@ class UniversalRawImageEncoder(nn.Module):
 class UniversalRawAudioEncoder(nn.Module):
     def __init__(self, config):
         super().__init__()
+        self.config = config # Added to access config.model.embedding_dim for empty tensor creation
         # Placeholder: In a full model, this would be a ConvNet or Transformer for raw waveforms
         # config.audio_input_dim would be the number of samples in an audio segment.
         self.embedding_layer = nn.Linear(100, config.model.embedding_dim) # Dummy dim
