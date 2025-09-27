@@ -24,7 +24,7 @@ def load_dummy_audio(batch_size, device, config):
     return torch.randn(batch_size, config.raw_encoder.audio.num_samples, device=device)
 
 def infer(config, model_path, raw_text_input_str, focus_strength, max_new_tokens, output_modality, 
-          raw_image_input_arg=None, raw_audio_input_arg=None):
+          raw_image_input_arg=None, raw_audio_input_arg=None, targets_arg=None): # Added targets_arg
     
     set_seed(config.training.seed)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -45,7 +45,8 @@ def infer(config, model_path, raw_text_input_str, focus_strength, max_new_tokens
         print(f"Error: Failed to load model checkpoint {model_path}. Details: {e}")
         sys.exit(1)
 
-    model.eval()
+    # Note: model.eval() is called inside generate() for standard operation,
+    # but generate() can temporarily enable gradients for online adaptation if targets are provided.
 
     # 1. Prepare text input
     encoded_input_list = tokenizer.encode(raw_text_input_str)
@@ -81,19 +82,41 @@ def infer(config, model_path, raw_text_input_str, focus_strength, max_new_tokens
             print(f"Loading actual audio from {raw_audio_input_arg} (placeholder: using dummy data)")
             raw_audio_input_tensor = load_dummy_audio(1, device, config)
 
+    # 3. Prepare targets for online adaptation (if provided)
+    targets_tensor = None
+    if targets_arg:
+        if targets_arg == 'dummy':
+            # Create a dummy target sequence. For simplicity, append some known characters to the prompt
+            # Target needs to be (B, T_total_targets)
+            dummy_target_str = raw_text_input_str + " the quick brown fox jumps over the lazy dog."
+            targets_list = tokenizer.encode(dummy_target_str)
+            targets_tensor = torch.tensor(targets_list, dtype=torch.long, device=device).unsqueeze(0)
+            print(f"Using dummy targets for online adaptation (length: {targets_tensor.size(1)}).")
+        else:
+            # Placeholder for loading actual target data from file
+            print(f"Loading actual targets from {targets_arg} (placeholder: using dummy data).")
+            # Example: read file and encode
+            # with open(targets_arg, 'r') as f:
+            #     target_text = f.read()
+            # targets_list = tokenizer.encode(target_text)
+            dummy_target_str = raw_text_input_str + " the quick brown fox jumps over the lazy dog."
+            targets_list = tokenizer.encode(dummy_target_str)
+            targets_tensor = torch.tensor(targets_list, dtype=torch.long, device=device).unsqueeze(0)
 
-    # 3. Generate
+
+    # 4. Generate
     print(f"\n--- Generating with focus_strength={focus_strength:.2f} ---")
     generated_indices = model.generate(
         raw_text_input=encoded_input, 
         max_new_tokens=max_new_tokens, 
         focus_strength=focus_strength,
         raw_image_input=raw_image_input_tensor,
-        raw_audio_input=raw_audio_input_tensor
+        raw_audio_input=raw_audio_input_tensor,
+        targets=targets_tensor # Pass targets for online adaptation
     )
     generated_text = tokenizer.decode(generated_indices[0].tolist())
 
-    # 4. Output
+    # 5. Output
     if output_modality == "text":
         print(f"Prompt: {raw_text_input_str}")
         print(f"Generated: {generated_text}")
@@ -121,6 +144,8 @@ if __name__ == "__main__":
                         help="Path to raw image data, or 'dummy' to use random data.")
     parser.add_argument('--raw_audio_input', type=str, default=None,
                         help="Path to raw audio data, or 'dummy' to use random data.")
+    parser.add_argument('--targets', type=str, default=None,
+                        help="Path to target text for online adaptation, or 'dummy' to use dummy targets.")
 
     args = parser.parse_args()
 
@@ -139,8 +164,6 @@ if __name__ == "__main__":
     config.model = SimpleNamespace(**config.model)
     config.raw_encoder = SimpleNamespace(**config.raw_encoder)
     config.raw_encoder.text = SimpleNamespace(**config.raw_encoder.text)
-    # Ensure image/audio config sections are created as SimpleNamespace if they exist and are enabled
-    # Otherwise, pass a SimpleNamespace with enabled=False to avoid errors
     config.raw_encoder.image = SimpleNamespace(**config.raw_encoder.image) if hasattr(config.raw_encoder, 'image') and config.raw_encoder.image else SimpleNamespace(enabled=False)
     config.raw_encoder.audio = SimpleNamespace(**config.raw_encoder.audio) if hasattr(config.raw_encoder, 'audio') and config.raw_encoder.audio else SimpleNamespace(enabled=False)
 
@@ -149,4 +172,4 @@ if __name__ == "__main__":
     config.training = SimpleNamespace(**config.training)
 
     infer(config, args.model_path, args.raw_text_input, args.focus_strength, args.max_new_tokens, args.output_modality,
-          args.raw_image_input, args.raw_audio_input)
+          args.raw_image_input, args.raw_audio_input, args.targets)
