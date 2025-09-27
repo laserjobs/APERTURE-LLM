@@ -87,7 +87,7 @@ def evaluate(config, model_path, benchmark_suite):
         B, T_fused, C_vocab = logits.shape
         T_text = input_for_loss.size(1) # Text sequence length for loss calculation
         
-        # Ensure T_fused is at least T_text for slicing
+        # Ensure T_fused is at least T_text
         if T_fused < T_text:
              print(f"Warning: Fused features length ({T_fused}) is less than expected text input length ({T_text}). Adjusting text_logits slice.")
              T_text = min(T_text, T_fused) # Adjust T_text to prevent IndexError
