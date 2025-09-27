@@ -182,5 +182,5 @@ if __name__ == "__main__":
     config.output_convergence = SimpleNamespace(**config.output_convergence)
     config.training = SimpleNamespace(**config.training)
 
-    infer(config, args.model_path, args.raw_text_input, args.focus_strength, max_new_tokens, args.output_modality,
-          args.raw_image_input, args.raw_audio_input, args.targets, args.adaptation_steps_limit)
+    infer(config, args.model_path, args.raw_text_input, args.focus_strength, args.max_new_tokens, args.output_modality,
+      args.raw_image_input, args.raw_audio_input, args.targets, args.adaptation_steps_limit)
