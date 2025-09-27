@@ -8,34 +8,39 @@ import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from aperture_core.model import APERTURE_LLM
-from aperture_core.utils import CharTokenizer, set_seed # Import set_seed
+from aperture_core.utils import CharTokenizer, set_seed
 
 def evaluate(config, model_path, benchmark_suite):
-    set_seed(config.training.seed) # Set seed for consistent evaluation behavior
+    set_seed(config.training.seed)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     
-    # 1. Load tokenizer and model
     tokenizer = CharTokenizer()
-    config.model.vocab_size = tokenizer.vocab_size # Update vocab_size based on tokenizer
+    config.model.vocab_size = tokenizer.vocab_size
 
     model = APERTURE_LLM(config).to(device)
-    model.load_state_dict(torch.load(model_path, map_location=device))
+    
+    # FIX: Add error handling for model loading
+    try:
+        model.load_state_dict(torch.load(model_path, map_location=device))
+        print(f"Model loaded successfully from {model_path}")
+    except FileNotFoundError:
+        print(f"Error: Model checkpoint {model_path} not found.")
+        sys.exit(1)
+    except RuntimeError as e:
+        print(f"Error: Failed to load model checkpoint {model_path}. Details: {e}")
+        sys.exit(1)
+
     model.eval()
-    print(f"Model loaded from {model_path}")
 
     print(f"\n--- Evaluating on {benchmark_suite} ---")
     print("NOTE: This is a placeholder evaluation script for a prototype.")
     print("A full evaluation would involve loading specific datasets, calculating metrics (perplexity, coherence, safety), and comparing against baselines.")
 
-    # Dummy evaluation
     dummy_text = "This is a test sentence for evaluation."
     encoded_input = torch.tensor(tokenizer.encode(dummy_text), dtype=torch.long, device=device).unsqueeze(0)
     
     with torch.no_grad():
-        # For prototype, only raw_text_input is handled for generation
-        logits = model(encoded_input, focus_strength=0.7) # Fixed focus for eval
-        # Calculate perplexity or other metrics
-        # For simplicity, we just print dummy output
+        logits = model(encoded_input, focus_strength=0.7)
         dummy_output = model.generate(encoded_input, max_new_tokens=20, focus_strength=0.7)
         print(f"Example output: {tokenizer.decode(dummy_output[0].tolist())}")
         print("Metrics (placeholder): Perplexity = 1.0, Coherence = 0.9, Efficiency = 0.95")
@@ -56,7 +61,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # FIX: Add error handling for config loading
+    # Error handling for config loading
     try:
         with open(args.config, 'r') as f:
             config_dict = yaml.safe_load(f)
@@ -71,7 +76,6 @@ if __name__ == "__main__":
     config.model = SimpleNamespace(**config.model)
     config.raw_encoder = SimpleNamespace(**config.raw_encoder)
     config.raw_encoder.text = SimpleNamespace(**config.raw_encoder.text)
-    # Ensure image/audio are SimpleNamespace if they exist, otherwise default to None
     config.raw_encoder.image = SimpleNamespace(**config.raw_encoder.image) if hasattr(config.raw_encoder, 'image') and config.raw_encoder.image else None
     config.raw_encoder.audio = SimpleNamespace(**config.raw_encoder.audio) if hasattr(config.raw_encoder, 'audio') and config.raw_encoder.audio else None
 
