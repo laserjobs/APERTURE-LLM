@@ -1,85 +1,85 @@
 # src/aperture_core/multi_modal_fusion.py
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 class MultiModalFusionModule(nn.Module):
     """
-    Unifies aliased feature streams from different modalities.
-    For this prototype, it primarily processes text embeddings,
-    but is structured to conditionally handle image and audio.
+    Fuses multi-modal inputs (text, image, audio) using cross-modal attention.
+    Maps features to a unified embedding space for further processing by DRBlocks.
     """
     def __init__(self, config):
         super().__init__()
         self.config = config
         
-        # Text projection is always assumed for the current prototype
-        self.text_proj = nn.Linear(config.raw_encoder.text.char_embed_dim * config.raw_encoder.text.multi_freq_components, 
-                                   config.model.embedding_dim)
+        # Trainable modality-specific weights for initial scaling
+        self.text_weight = nn.Parameter(torch.tensor(1.0))
+        # Initialized to 0.1 for faster learning from random inputs
+        self.image_weight = nn.Parameter(torch.tensor(0.1)) if config.raw_encoder.image.enabled else None
+        self.audio_weight = nn.Parameter(torch.tensor(0.1)) if config.raw_encoder.audio.enabled else None
         
-        # Conditionally initialize other modality projectors
-        self.image_proj = None
-        if hasattr(config.raw_encoder, 'image') and getattr(config.raw_encoder.image, 'enabled', False): # Check if 'image' section exists AND is enabled
-            self.image_proj = nn.Linear(config.model.embedding_dim, config.model.embedding_dim) 
-        
-        self.audio_proj = None
-        if hasattr(config.raw_encoder, 'audio') and getattr(config.raw_encoder.audio, 'enabled', False): # Check if 'audio' section exists AND is enabled
-            self.audio_proj = nn.Linear(config.model.embedding_dim, config.model.embedding_dim)
-
-        self.norm = nn.LayerNorm(config.model.embedding_dim)
-        
-        # A simple fusion MLP if multiple modalities are present.
-        self.fusion_mlp = nn.Sequential(
-            nn.Linear(config.model.embedding_dim, config.model.embedding_dim * 2),
-            nn.GELU(),
-            nn.Linear(config.model.embedding_dim * 2, config.model.embedding_dim)
+        # Cross-modal attention to enable deep interaction between modalities
+        # nn.MultiheadAttention expects embed_dim, num_heads, dropout
+        self.cross_attn = nn.MultiheadAttention(
+            embed_dim=config.model.embedding_dim,
+            num_heads=config.model.num_heads,  # Reuse num_heads from model config
+            dropout=0.1
         )
-
-    def forward(self, text_features, image_features=None, audio_features=None):
-        # text_features: (B, T_text, raw_encoder_output_dim) - always expected
-        # image_features: (B, T_image, raw_encoder_output_dim_image) or (B, 1, embedding_dim) for dummy
-        # audio_features: (B, T_audio, raw_encoder_output_dim_audio) or (B, 1, embedding_dim) for dummy
-
-        all_modal_features_to_fuse = []
-
-        # Process text features (always present for this prototype's main functionality)
-        if text_features is not None and text_features.numel() > 0:
-            all_modal_features_to_fuse.append(self.text_proj(text_features))
-        else:
-            raise ValueError("Text features cannot be empty in APERTURE-LLM prototype as it's the primary modality.")
-
-        # Conditionally process image features
-        if self.image_proj and image_features is not None and image_features.numel() > 0:
-            all_modal_features_to_fuse.append(self.image_proj(image_features))
         
-        # Conditionally process audio features
-        if self.audio_proj and audio_features is not None and audio_features.numel() > 0:
-            all_modal_features_to_fuse.append(self.audio_proj(audio_features))
+        # Linear projection and LayerNorm after attention
+        self.proj = nn.Linear(config.model.embedding_dim, config.model.embedding_dim)
+        self.norm = nn.LayerNorm(config.model.embedding_dim)
+        self.dropout_layer = nn.Dropout(0.1) # Added for consistency
 
-        if len(all_modal_features_to_fuse) > 1:
-            # For simplicity in prototype: Pad/trim all features to the max sequence length
-            max_len = max(f.size(1) for f in all_modal_features_to_fuse)
-            
-            # Pad / trim features to match max_len
-            padded_features = []
-            for f in all_modal_features_to_fuse:
-                if f.size(1) > max_len: # Trim if longer
-                    padded_features.append(f[:, :max_len, :])
-                elif f.size(1) < max_len: # Pad if shorter
-                    pad_size = max_len - f.size(1)
-                    # Pad (left, right, top, bottom) for last two dims
-                    padded_features.append(F.pad(f, (0, 0, 0, pad_size))) 
-                else:
-                    padded_features.append(f)
-            
-            # Stack features and average them for a simple fusion in the prototype
-            # (B, num_active_modalities, max_T, embedding_dim) -> (B, max_T, embedding_dim)
-            fused_features = torch.stack(padded_features, dim=1).mean(dim=1)
-            
-            # Apply a simple fusion MLP
-            fused_features = self.fusion_mlp(fused_features)
-        else:
-            # If only one modality (text) is active, just return its projected features
-            fused_features = all_modal_features_to_fuse[0]
+    def forward(self, text_features, image_features, audio_features):
+        """
+        Fuses text, image, and audio features using cross-modal attention.
+        Args:
+            text_features: (B, T_text, embedding_dim) or None
+            image_features: (B, T_image, embedding_dim) or None
+            audio_features: (B, T_audio, embedding_dim) or None
+        Returns:
+            fused_features: (B, T_fused, embedding_dim)
+        """
+        # Collect non-None features and apply modality weights
+        features = []
+        if text_features is not None and text_features.numel() > 0:
+            features.append(self.text_weight * text_features)
+        
+        # Check if image encoder is enabled AND features are provided and non-empty
+        if self.image_weight is not None and image_features is not None and image_features.numel() > 0:
+            features.append(self.image_weight * image_features)
+        
+        # Check if audio encoder is enabled AND features are provided and non-empty
+        if self.audio_weight is not None and audio_features is not None and audio_features.numel() > 0:
+            features.append(self.audio_weight * audio_features)
 
-        return self.norm(fused_features) # (B, T_fused, embedding_dim)
+        # Handle edge case: no valid features (should ideally not happen if text_features is always present)
+        if not features:
+            # Determine device from available (or default to 'cpu')
+            device = 'cpu'
+            if text_features is not None: device = text_features.device
+            elif image_features is not None: device = image_features.device
+            elif audio_features is not None: device = audio_features.device
+            
+            # Return a dummy tensor for batch size 1, 1 sequence element, embedding_dim
+            # This case indicates an error in multi-modal setup if text is expected.
+            return torch.zeros(1, 1, self.config.model.embedding_dim, device=device)
+
+        # Concatenate features along sequence dimension
+        # (B, T_text + T_image + T_audio, embedding_dim)
+        fused = torch.cat(features, dim=1) 
+
+        # Apply cross-modal attention
+        # nn.MultiheadAttention expects input as (sequence_length, batch_size, embed_dim)
+        fused = fused.transpose(0, 1)  # (T_fused, B, embedding_dim)
+        
+        # Query, Key, Value are all the same for self-attention within the fused features
+        attn_output, _ = self.cross_attn(fused, fused, fused)  # (T_fused, B, embedding_dim)
+        
+        attn_output = attn_output.transpose(0, 1)  # Transpose back to (B, T_fused, embedding_dim)
+
+        # Project, normalize, and dropout
+        fused_features = self.norm(self.proj(attn_output))
+        fused_features = self.dropout_layer(fused_features)
+        
+        return fused_features  # (B, T_fused, embedding_dim)
