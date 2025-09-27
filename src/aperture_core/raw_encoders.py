@@ -1,12 +1,11 @@
 # src/aperture_core/raw_encoders.py
 import torch
 import torch.nn as nn
-import numpy as np
 
 class MultiFrequencyCharEmbedding(nn.Module):
     """
-    Conceptually implements multi-frequency embeddings for raw characters.
-    Instead of a single embedding, it combines embeddings from different 'scales'.
+    Multi-frequency embeddings for raw characters.
+    Combines embeddings from different 'scales'.
     """
     def __init__(self, vocab_size, char_embed_dim, multi_freq_components):
         super().__init__()
@@ -15,20 +14,15 @@ class MultiFrequencyCharEmbedding(nn.Module):
         self.embeddings = nn.ModuleList([
             nn.Embedding(vocab_size, char_embed_dim) for _ in range(multi_freq_components)
         ])
-        # A simple way to make them "different frequencies" in a prototype:
-        # could be learned filters, or just multiple independent embeddings
-        # here we use independent embeddings and concat.
 
     def forward(self, idx):
         # idx: (B, T) tensor of character indices
         embeds = [emb(idx) for emb in self.embeddings]
-        return torch.cat(embeds, dim=-1) # (B, T, total_embed_dim)
-
+        return torch.cat(embeds, dim=-1)  # (B, T, total_embed_dim)
 
 class UniversalRawTextEncoder(nn.Module):
     """
-    Replaces tokenization by encoding raw character streams directly.
-    This is the D_text operator.
+    Encodes raw character streams directly.
     """
     def __init__(self, config):
         super().__init__()
@@ -45,53 +39,100 @@ class UniversalRawTextEncoder(nn.Module):
     def forward(self, raw_char_indices):
         # raw_char_indices: (B, T) tensor of character indices
         B, T = raw_char_indices.shape
-        
-        # Get multi-frequency character embeddings
-        x = self.multi_freq_embed(raw_char_indices) # (B, T, total_embed_dim)
-
-        # Add positional embeddings (essential for sequence modeling)
-        pos = torch.arange(0, T, dtype=torch.long, device=raw_char_indices.device) # (T)
-        x = self.dropout(x + self.pos_encoder(pos)) # (B, T, total_embed_dim)
-        
-        # In a real model, this would involve learned "aliasing" mechanisms (e.g., convolutions, pooling,
-        # or specialized attention that intentionally blurs details to encode semantic essence).
-        # For this prototype, the multi-frequency embedding and subsequent transformer layers
-        # implicitly handle some of this 'aliasing' by learning to focus on different scales.
-
+        x = self.multi_freq_embed(raw_char_indices)  # (B, T, total_embed_dim)
+        pos = torch.arange(0, T, dtype=torch.long, device=raw_char_indices.device)  # (T)
+        x = self.dropout(x + self.pos_encoder(pos))  # (B, T, total_embed_dim)
         return x
 
-# Placeholder for other raw encoders (image, audio)
 class UniversalRawImageEncoder(nn.Module):
+    """
+    Processes raw RGB pixels without external libraries (e.g., torchvision).
+    Uses patch-based embedding to map (B, C, H, W) to (B, T_image, embedding_dim).
+    Assumes fixed input image dimensions for simplicity in prototype.
+    """
     def __init__(self, config):
         super().__init__()
-        self.config = config # Added to access config.model.embedding_dim for empty tensor creation
-        # Placeholder: In a full model, this would be a vision transformer or CNN for raw pixels
-        # For a prototype, use a dummy linear layer that takes a flattened image.
-        # config.image_input_dim would be H*W*C of an example image.
-        self.embedding_layer = nn.Linear(100, config.model.embedding_dim) # Dummy dim
-        print("WARNING: UniversalRawImageEncoder is a placeholder and not fully implemented.")
-    
+        self.config = config
+        
+        # Default/Expected input shape. Can be made configurable if needed.
+        # For a 224x224 image with 16x16 patches, this means 14x14 = 196 patches.
+        self.expected_C = 3
+        self.expected_H = 224
+        self.expected_W = 224
+        
+        self.patch_size = 16  
+        if self.expected_H % self.patch_size != 0 or self.expected_W % self.patch_size != 0:
+            raise ValueError("Image dimensions must be divisible by patch_size")
+
+        self.num_patches = (self.expected_H // self.patch_size) * (self.expected_W // self.patch_size)
+        self.patch_embed = nn.Linear(self.expected_C * self.patch_size * self.patch_size, config.model.embedding_dim)
+        self.pos_embed = nn.Parameter(torch.randn(1, self.num_patches, config.model.embedding_dim))
+        self.dropout = nn.Dropout(0.1)
+
     def forward(self, raw_pixels):
-        # raw_pixels: (B, C, H, W) -> (B, C*H*W) for dummy
-        # Ensure raw_pixels is reshaped correctly for the dummy linear layer.
-        # This is illustrative; a real encoder would use convolutions etc.
-        if raw_pixels.numel() == 0: # Handle empty tensor if no image input
+        # raw_pixels: (B, C, H, W)
+        if raw_pixels.numel() == 0:  # Handle empty tensor if no image input
             # Return a tensor compatible with fusion: (B, T_image_dummy=1, embedding_dim)
             return torch.empty(raw_pixels.size(0), 1, self.config.model.embedding_dim, device=raw_pixels.device)
-        return self.embedding_layer(raw_pixels.view(raw_pixels.size(0), -1)).unsqueeze(1) # (B, 1, embedding_dim)
+        
+        B, C, H, W = raw_pixels.shape
+        if C != self.expected_C or H != self.expected_H or W != self.expected_W:
+            raise ValueError(f"UniversalRawImageEncoder expected input shape (B, {self.expected_C}, {self.expected_H}, {self.expected_W}), but got {raw_pixels.shape}. Adjust raw_encoders.py or input data.")
+        
+        # Extract patches using unfold:
+        # (B, C, H, W) -> (B, C, H/p, p, W/p, p) -> (B, C, H/p, W/p, p, p)
+        patches = raw_pixels.unfold(2, self.patch_size, self.patch_size).unfold(3, self.patch_size, self.patch_size)
+        # Reshape to (B, num_patches, C*p*p)
+        patches = patches.permute(0, 2, 3, 1, 4, 5).contiguous().view(B, self.num_patches, -1)
+        
+        x = self.patch_embed(patches)  # (B, num_patches, embedding_dim)
+        x = x + self.pos_embed
+        x = self.dropout(x)
+        return x  # (B, T_image=num_patches, embedding_dim)
 
 class UniversalRawAudioEncoder(nn.Module):
+    """
+    Processes raw waveforms (PCM samples) without external libraries (e.g., torchaudio).
+    Uses a simple FFT-based transform to map (B, Samples) to (B, T_audio, embedding_dim).
+    Assumes fixed total samples for simplicity in prototype.
+    """
     def __init__(self, config):
         super().__init__()
-        self.config = config # Added to access config.model.embedding_dim for empty tensor creation
-        # Placeholder: In a full model, this would be a ConvNet or Transformer for raw waveforms
-        # config.audio_input_dim would be the number of samples in an audio segment.
-        self.embedding_layer = nn.Linear(100, config.model.embedding_dim) # Dummy dim
-        print("WARNING: UniversalRawAudioEncoder is a placeholder and not fully implemented.")
+        self.config = config
+        self.window_size = 1024  # Number of samples per FFT window
+        self.overlap = self.window_size // 4 # For overlapping windows, if needed; kept simple for now
+        self.hop_length = self.window_size - self.overlap # Stride for windowing; simple for now
+        
+        self.num_segments = 128  # Fixed number of time segments
+        self.expected_samples = self.window_size + (self.num_segments - 1) * self.hop_length # Total samples needed for fixed segments
+
+        self.proj = nn.Linear(self.window_size // 2 + 1, config.model.embedding_dim) # FFT output has window_size // 2 + 1 bins
+        self.pos_embed = nn.Parameter(torch.randn(1, self.num_segments, config.model.embedding_dim))
+        self.dropout = nn.Dropout(0.1)
 
     def forward(self, raw_waveform):
         # raw_waveform: (B, Samples)
-        if raw_waveform.numel() == 0: # Handle empty tensor if no audio input
+        if raw_waveform.numel() == 0:  # Handle empty tensor if no audio input
             # Return a tensor compatible with fusion: (B, T_audio_dummy=1, embedding_dim)
             return torch.empty(raw_waveform.size(0), 1, self.config.model.embedding_dim, device=raw_waveform.device)
-        return self.embedding_layer(raw_waveform).unsqueeze(1) # (B, 1, embedding_dim)
+        
+        B, S = raw_waveform.shape
+        if S < self.expected_samples:
+            # Pad if shorter than expected input for fixed segments
+            raw_waveform = torch.nn.functional.pad(raw_waveform, (0, self.expected_samples - S))
+        elif S > self.expected_samples:
+            # Truncate if longer than expected input
+            raw_waveform = raw_waveform[:, :self.expected_samples]
+        
+        # Create overlapping windows manually for the prototype
+        # This is a simplified version of what torchaudio.transforms.Spectrogram would do
+        windows = raw_waveform.unfold(dimension=-1, size=self.window_size, step=self.hop_length) # (B, num_segments, window_size)
+        
+        # Apply FFT to each window
+        # torch.fft.rfft returns complex numbers; .abs() takes magnitude
+        fft_magnitude = torch.fft.rfft(windows, dim=-1).abs()  # (B, num_segments, window_size//2 + 1)
+        
+        x = self.proj(fft_magnitude)  # (B, num_segments, embedding_dim)
+        x = x + self.pos_embed
+        x = self.dropout(x)
+        return x  # (B, T_audio=num_segments, embedding_dim)
