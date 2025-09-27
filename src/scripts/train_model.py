@@ -23,7 +23,7 @@ def train(config):
     # 1. Load data and tokenizer
     tokenizer = CharTokenizer()
     
-    # FIX: Updated dummy text to be longer for better data representation
+    # Updated dummy text to be longer for better data representation
     dummy_text = "This is a simple text string for demonstration. The APERTURE LLM aims to be the best LLM available. It processes raw digital inputs directly. Hello World 123!@#$%^&*()_+-=[]{}|;':\",./<>?~`" * 500 # Increased from *50
     data = torch.tensor(tokenizer.encode(dummy_text), dtype=torch.long)
     
@@ -36,19 +36,20 @@ def train(config):
     model = APERTURE_LLM(config).to(device)
     optimizer = optim.AdamW(model.parameters(), lr=config.training.learning_rate)
     criterion = nn.CrossEntropyLoss()
-    print(f"Model initialized with {sum(p.numel() for p in model.parameters())/1e6:.2f}M parameters")
+    print(f"APERTURE-LLM Model initialized with {sum(p.numel() for p in model.parameters())/1e6:.2f}M parameters")
 
     # Optional: Debug Tensor Shapes - START
+    # For text-only training, we only provide `xb` to the model.
     xb_debug, yb_debug = get_batch(data, config.model.block_size, config.training.batch_size, device)
     print(f"DEBUG: Input batch shape: {xb_debug.shape}, Target batch shape: {yb_debug.shape}") # Expected: (batch_size, block_size) e.g., (8, 256)
     with torch.no_grad():
-        logits_debug = model(xb_debug, focus_strength=0.5) 
+        logits_debug = model(xb_debug, focus_strength=0.5) # Text-only
     print(f"DEBUG: Logits shape: {logits_debug.shape}") # Expected: (batch_size, block_size, vocab_size) e.g., (8, 256, 256)
     # Optional: Debug Tensor Shapes - END
 
     # 3. Training Loop
     model.train()
-    # FIX: Make the number of iterations dynamic based on the larger dummy text
+    # Make the number of iterations dynamic based on the larger dummy text
     num_iterations_per_epoch = (len(data) - config.model.block_size) // config.training.batch_size
     if num_iterations_per_epoch == 0: # Fallback for extremely small datasets
         num_iterations_per_epoch = 100 
@@ -56,10 +57,12 @@ def train(config):
     for epoch in range(config.training.num_epochs):
         print(f"Epoch {epoch+1}/{config.training.num_epochs}")
         for iter_step in tqdm(range(num_iterations_per_epoch), desc=f"Epoch {epoch+1}"):
+            # For text-only training, we only get `xb` and `yb` from `get_batch`.
+            # For multi-modal, you would need to load/generate image/audio data here.
             xb, yb = get_batch(data, config.model.block_size, config.training.batch_size, device)
 
-            # Forward pass
-            logits = model(xb, focus_strength=0.5) # Use a fixed focus_strength for training
+            # Forward pass (text-only for current prototype)
+            logits = model(xb, focus_strength=0.5)
 
             # Calculate loss
             B, T, C_vocab = logits.shape
@@ -103,6 +106,8 @@ if __name__ == "__main__":
     config.model = SimpleNamespace(**config.model)
     config.raw_encoder = SimpleNamespace(**config.raw_encoder)
     config.raw_encoder.text = SimpleNamespace(**config.raw_encoder.text)
+    # Ensure image/audio are SimpleNamespace if they exist and are enabled in config.
+    # Note: yaml.safe_load might omit commented-out sections entirely, so hasattr is key.
     config.raw_encoder.image = SimpleNamespace(**config.raw_encoder.image) if hasattr(config.raw_encoder, 'image') and config.raw_encoder.image else None
     config.raw_encoder.audio = SimpleNamespace(**config.raw_encoder.audio) if hasattr(config.raw_encoder, 'audio') and config.raw_encoder.audio else None
 
