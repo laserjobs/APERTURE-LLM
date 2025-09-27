@@ -24,7 +24,7 @@ def load_dummy_audio(batch_size, device, config):
     return torch.randn(batch_size, config.raw_encoder.audio.num_samples, device=device)
 
 def infer(config, model_path, raw_text_input_str, focus_strength, max_new_tokens, output_modality, 
-          raw_image_input_arg=None, raw_audio_input_arg=None, targets_arg=None): # Added targets_arg
+          raw_image_input_arg=None, raw_audio_input_arg=None, targets_arg=None, adaptation_steps_limit=None): # Added targets_arg & adaptation_steps_limit
     
     set_seed(config.training.seed)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -44,9 +44,6 @@ def infer(config, model_path, raw_text_input_str, focus_strength, max_new_tokens
     except RuntimeError as e:
         print(f"Error: Failed to load model checkpoint {model_path}. Details: {e}")
         sys.exit(1)
-
-    # Note: model.eval() is called inside generate() for standard operation,
-    # but generate() can temporarily enable gradients for online adaptation if targets are provided.
 
     # 1. Prepare text input
     encoded_input_list = tokenizer.encode(raw_text_input_str)
@@ -86,10 +83,19 @@ def infer(config, model_path, raw_text_input_str, focus_strength, max_new_tokens
     targets_tensor = None
     if targets_arg:
         if targets_arg == 'dummy':
-            # Create a dummy target sequence. For simplicity, append some known characters to the prompt
-            # Target needs to be (B, T_total_targets)
-            dummy_target_str = raw_text_input_str + " the quick brown fox jumps over the lazy dog."
-            targets_list = tokenizer.encode(dummy_target_str)
+            # Create a dummy target sequence. It needs to be AT LEAST as long as prompt + max_new_tokens.
+            # `encoded_input.size(1)` is the prompt length.
+            required_target_len = encoded_input.size(1) + max_new_tokens
+            
+            dummy_target_str = raw_text_input_str + " " # Start with prompt text
+            # Append repeated text until it's long enough
+            while len(tokenizer.encode(dummy_target_str)) < required_target_len:
+                dummy_target_str += "the quick brown fox jumps over the lazy dog. "
+                # Add a safety break to prevent excessively long strings or infinite loops
+                if len(dummy_target_str) > required_target_len * 2: 
+                    break 
+
+            targets_list = tokenizer.encode(dummy_target_str)[:required_target_len] # Truncate to exact required length
             targets_tensor = torch.tensor(targets_list, dtype=torch.long, device=device).unsqueeze(0)
             print(f"Using dummy targets for online adaptation (length: {targets_tensor.size(1)}).")
         else:
@@ -99,6 +105,8 @@ def infer(config, model_path, raw_text_input_str, focus_strength, max_new_tokens
             # with open(targets_arg, 'r') as f:
             #     target_text = f.read()
             # targets_list = tokenizer.encode(target_text)
+            
+            # For this prototype, we'll still use dummy logic if a file path is given
             dummy_target_str = raw_text_input_str + " the quick brown fox jumps over the lazy dog."
             targets_list = tokenizer.encode(dummy_target_str)
             targets_tensor = torch.tensor(targets_list, dtype=torch.long, device=device).unsqueeze(0)
@@ -112,7 +120,8 @@ def infer(config, model_path, raw_text_input_str, focus_strength, max_new_tokens
         focus_strength=focus_strength,
         raw_image_input=raw_image_input_tensor,
         raw_audio_input=raw_audio_input_tensor,
-        targets=targets_tensor # Pass targets for online adaptation
+        targets=targets_tensor, # Pass targets for online adaptation
+        adaptation_steps_limit=adaptation_steps_limit # Pass adaptation step limit
     )
     generated_text = tokenizer.decode(generated_indices[0].tolist())
 
@@ -146,6 +155,8 @@ if __name__ == "__main__":
                         help="Path to raw audio data, or 'dummy' to use random data.")
     parser.add_argument('--targets', type=str, default=None,
                         help="Path to target text for online adaptation, or 'dummy' to use dummy targets.")
+    parser.add_argument('--adaptation_steps_limit', type=int, default=None,
+                        help="Limit online adaptation to this many initial generation steps.")
 
     args = parser.parse_args()
 
@@ -171,5 +182,5 @@ if __name__ == "__main__":
     config.output_convergence = SimpleNamespace(**config.output_convergence)
     config.training = SimpleNamespace(**config.training)
 
-    infer(config, args.model_path, args.raw_text_input, args.focus_strength, args.max_new_tokens, args.output_modality,
-          args.raw_image_input, args.raw_audio_input, args.targets)
+    infer(config, args.model_path, args.raw_text_input, args.focus_strength, max_new_tokens, args.output_modality,
+          args.raw_image_input, args.raw_audio_input, args.targets, args.adaptation_steps_limit)
