@@ -4,7 +4,7 @@ model:
   embedding_dim: 128
   num_layers: 4
   num_heads: 8
-  block_size: 512 # Max input sequence length for raw encoder
+  block_size: 256 # Reduced from 512. Max input sequence length for raw encoder
 
 raw_encoder:
   type: "text" # Primary encoder type for current prototype
@@ -31,7 +31,7 @@ output_convergence:
   
 training:
   learning_rate: 0.001
-  batch_size: 16
+  batch_size: 8 # Reduced from 16
   num_epochs: 5
-  eval_interval: 100
+  eval_interval: 10 # Reduced from 100 for more frequent logging
   seed: 42 # New: Seed for reproducibility
