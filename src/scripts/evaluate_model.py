@@ -31,7 +31,7 @@ def evaluate(config, model_path, benchmark_suite):
         print(f"Error: Failed to load model checkpoint {model_path}. Details: {e}")
         sys.exit(1)
 
-    model.eval()
+    model.eval() # Ensure model is in eval mode for inference-time behaviors
 
     print(f"\n--- Evaluating on {benchmark_suite} ---")
     print("NOTE: This is a placeholder evaluation script for a prototype.")
@@ -42,20 +42,20 @@ def evaluate(config, model_path, benchmark_suite):
     # Encode for loss calculation (targets are shifted input)
     encoded_full_input = torch.tensor(tokenizer.encode(dummy_eval_text), dtype=torch.long, device=device).unsqueeze(0)
     
-    # Generate dummy multi-modal inputs for evaluation if enabled
+    # Generate dummy multi-modal inputs for evaluation if enabled in config
     raw_image_input_eval = None
     if config.raw_encoder.image.enabled:
-        # Use batch size 1 for evaluation
-        raw_image_input_eval = torch.randn(1, 3, 224, 224, device=device)
+        raw_image_input_eval = torch.randn(1, config.raw_encoder.image.input_shape[0], 
+                                           config.raw_encoder.image.input_shape[1], 
+                                           config.raw_encoder.image.input_shape[2], device=device)
     
     raw_audio_input_eval = None
     if config.raw_encoder.audio.enabled:
-        # Use batch size 1 for evaluation
-        raw_audio_input_eval = torch.randn(1, 131072, device=device)
+        raw_audio_input_eval = torch.randn(1, config.raw_encoder.audio.num_samples, device=device)
 
     # Ensure encoded_full_input is not empty and has a sequence length suitable for perplexity
     if encoded_full_input.size(1) < 2:
-        print("Warning: Evaluation text too short to compute perplexity.")
+        print("Warning: Evaluation text too short to compute perplexity. Skipping perplexity calculation.")
         if encoded_full_input.size(1) == 0:
             print("No valid input characters for generation.")
             sys.exit(1)
@@ -70,11 +70,11 @@ def evaluate(config, model_path, benchmark_suite):
         print("\nEvaluation finished.")
         return
 
-    # Use the portion of the sequence for which we have both input and a target
+    # Use the portion of the sequence for which we have both input and a target for perplexity calculation
     input_for_loss = encoded_full_input[:, :-1]
     target_for_loss = encoded_full_input[:, 1:]
 
-    with torch.no_grad():
+    with torch.no_grad(): # Ensure no gradients are tracked during evaluation's forward pass
         # Get logits for the input_for_loss sequence (now potentially multi-modal conditioned)
         logits = model(
             input_for_loss, 
@@ -87,12 +87,10 @@ def evaluate(config, model_path, benchmark_suite):
         B, T_fused, C_vocab = logits.shape
         T_text = input_for_loss.size(1) # Text sequence length for loss calculation
         
-        # Ensure T_fused is at least T_text
+        # Ensure T_fused is at least T_text for slicing
         if T_fused < T_text:
-             print(f"Warning: Fused features length ({T_fused}) < text input length ({T_text}). Loss calculation may be incorrect.")
-             # Fallback to a partial loss or exit if this becomes an issue.
-             # For now, we'll try to slice as much as possible, but it indicates a data mismatch.
-             T_text = min(T_text, T_fused)
+             print(f"Warning: Fused features length ({T_fused}) is less than expected text input length ({T_text}). Adjusting text_logits slice.")
+             T_text = min(T_text, T_fused) # Adjust T_text to prevent IndexError
 
         text_logits = logits[:, :T_text, :] # (B, T_text, C_vocab)
 
@@ -103,6 +101,7 @@ def evaluate(config, model_path, benchmark_suite):
         dummy_output = model.generate(
             encoded_full_input, max_new_tokens=20, focus_strength=0.7,
             raw_image_input=raw_image_input_eval, raw_audio_input=raw_audio_input_eval
+            # Note: `targets=None` by default in evaluation, so no online adaptation here
         )
         print(f"Example output: {tokenizer.decode(dummy_output[0].tolist())}")
         print(f"Computed Perplexity: {perplexity.item():.4f}") # Display computed perplexity
@@ -139,7 +138,6 @@ if __name__ == "__main__":
     config.model = SimpleNamespace(**config.model)
     config.raw_encoder = SimpleNamespace(**config.raw_encoder)
     # Ensure image/audio config sections are created as SimpleNamespace if they exist and are enabled
-    # Otherwise, pass a SimpleNamespace with enabled=False to avoid errors
     config.raw_encoder.text = SimpleNamespace(**config.raw_encoder.text)
     config.raw_encoder.image = SimpleNamespace(**config.raw_encoder.image) if hasattr(config.raw_encoder, 'image') and config.raw_encoder.image else SimpleNamespace(enabled=False)
     config.raw_encoder.audio = SimpleNamespace(**config.raw_encoder.audio) if hasattr(config.raw_encoder, 'audio') and config.raw_encoder.audio else SimpleNamespace(enabled=False)
