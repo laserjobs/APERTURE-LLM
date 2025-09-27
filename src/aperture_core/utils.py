@@ -7,13 +7,17 @@ import os
 # Simple char-level tokenizer for demonstration
 class CharTokenizer:
     def __init__(self):
-        self.chars = sorted(list(set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,;:!?'\"-()[]{}\n")))
+        # Full ASCII (0-255) for vocab_size 256
+        self.chars = [chr(i) for i in range(256)]
         self.stoi = {ch: i for i, ch in enumerate(self.chars)}
         self.itos = {i: ch for i, ch in enumerate(self.chars)}
         self.vocab_size = len(self.chars)
 
     def encode(self, s):
-        return [self.stoi[c] for c in s if c in self.stoi]
+        # Default to space (ASCII 32) if character is not in vocab.
+        # Fallback to index 0 if space itself isn't somehow in vocab (though it should be for 0-255).
+        default_char_idx = self.stoi.get(' ', 0) 
+        return [self.stoi.get(c, default_char_idx) for c in s]
 
     def decode(self, l):
         return "".join([self.itos[i] for i in l])
