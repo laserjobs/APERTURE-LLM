@@ -9,31 +9,36 @@ import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from aperture_core.model import APERTURE_LLM
-from aperture_core.utils import CharTokenizer, set_seed # Import set_seed
+from aperture_core.utils import CharTokenizer, set_seed
 
 def infer(config, model_path, raw_text_input, focus_strength, max_new_tokens, output_modality):
-    set_seed(config.training.seed) # Set seed for consistent inference behavior
+    set_seed(config.training.seed)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    # 1. Load tokenizer and model
     tokenizer = CharTokenizer()
-    config.model.vocab_size = tokenizer.vocab_size # Update vocab_size based on tokenizer
+    config.model.vocab_size = tokenizer.vocab_size
     
     model = APERTURE_LLM(config).to(device)
-    model.load_state_dict(torch.load(model_path, map_location=device))
+    
+    # FIX: Add error handling for model loading
+    try:
+        model.load_state_dict(torch.load(model_path, map_location=device))
+        print(f"Model loaded successfully from {model_path}")
+    except FileNotFoundError:
+        print(f"Error: Model checkpoint {model_path} not found.")
+        sys.exit(1)
+    except RuntimeError as e:
+        print(f"Error: Failed to load model checkpoint {model_path}. Details: {e}")
+        sys.exit(1)
+
     model.eval()
-    print(f"Model loaded from {model_path}")
 
-    # 2. Prepare input
-    encoded_input = torch.tensor(tokenizer.encode(raw_text_input), dtype=torch.long, device=device).unsqueeze(0) # Add batch dim
+    encoded_input = torch.tensor(tokenizer.encode(raw_text_input), dtype=torch.long, device=device).unsqueeze(0)
 
-    # 3. Generate
     print(f"\n--- Generating with focus_strength={focus_strength:.2f} ---")
-    # For prototype, only raw_text_input is handled for generation
     generated_indices = model.generate(encoded_input, max_new_tokens, focus_strength=focus_strength)
     generated_text = tokenizer.decode(generated_indices[0].tolist())
 
-    # 4. Output
     if output_modality == "text":
         print(f"Prompt: {raw_text_input}")
         print(f"Generated: {generated_text}")
@@ -60,7 +65,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # FIX: Add error handling for config loading
+    # Error handling for config loading
     try:
         with open(args.config, 'r') as f:
             config_dict = yaml.safe_load(f)
@@ -71,17 +76,15 @@ if __name__ == "__main__":
         print(f"Error: Invalid YAML format in {args.config}. Details: {e}")
         sys.exit(1)
     
-    # Convert dict to SimpleNamespace for easy attribute access
     config = SimpleNamespace(**config_dict)
     config.model = SimpleNamespace(**config.model)
     config.raw_encoder = SimpleNamespace(**config.raw_encoder)
     config.raw_encoder.text = SimpleNamespace(**config.raw_encoder.text)
-    # Ensure image/audio are SimpleNamespace if they exist, otherwise default to None
     config.raw_encoder.image = SimpleNamespace(**config.raw_encoder.image) if hasattr(config.raw_encoder, 'image') and config.raw_encoder.image else None
     config.raw_encoder.audio = SimpleNamespace(**config.raw_encoder.audio) if hasattr(config.raw_encoder, 'audio') and config.raw_encoder.audio else None
 
     config.dynamic_resolution = SimpleNamespace(**config.dynamic_resolution)
     config.output_convergence = SimpleNamespace(**config.output_convergence)
-    config.training = SimpleNamespace(**config.training) # Used for seed here
+    config.training = SimpleNamespace(**config.training)
 
     infer(config, args.model_path, args.raw_text_input, args.focus_strength, args.max_new_tokens, args.output_modality)
