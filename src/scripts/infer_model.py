@@ -11,7 +11,21 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from aperture_core.model import APERTURE_LLM
 from aperture_core.utils import CharTokenizer, set_seed
 
-def infer(config, model_path, raw_text_input, focus_strength, max_new_tokens, output_modality):
+# Placeholder function to load image (replace with actual image loading using torch operations)
+def load_dummy_image(batch_size, device, config):
+    # This should match the expected input shape for UniversalRawImageEncoder
+    return torch.randn(batch_size, config.raw_encoder.image.input_shape[0], 
+                       config.raw_encoder.image.input_shape[1], 
+                       config.raw_encoder.image.input_shape[2], device=device)
+
+# Placeholder function to load audio (replace with actual audio loading using torch operations)
+def load_dummy_audio(batch_size, device, config):
+    # This should match the expected input shape for UniversalRawAudioEncoder
+    return torch.randn(batch_size, config.raw_encoder.audio.num_samples, device=device)
+
+def infer(config, model_path, raw_text_input_str, focus_strength, max_new_tokens, output_modality, 
+          raw_image_input_arg=None, raw_audio_input_arg=None):
+    
     set_seed(config.training.seed)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -33,26 +47,55 @@ def infer(config, model_path, raw_text_input, focus_strength, max_new_tokens, ou
 
     model.eval()
 
-    # FIX: Truncate or pad the input prompt to block_size
-    encoded_input_list = tokenizer.encode(raw_text_input)
+    # 1. Prepare text input
+    encoded_input_list = tokenizer.encode(raw_text_input_str)
     encoded_input = torch.tensor(encoded_input_list, dtype=torch.long, device=device)
     
     if encoded_input.size(0) == 0:
         print("Error: Input prompt is empty or contains no recognized characters.")
         sys.exit(1)
 
+    # Truncate if input length exceeds model's block_size
     if encoded_input.size(0) > config.model.block_size:
         print(f"Warning: Input prompt length ({encoded_input.size(0)}) exceeds model's block_size ({config.model.block_size}). Truncating input.")
-        encoded_input = encoded_input[-config.model.block_size:]  # Truncate to block_size
+        encoded_input = encoded_input[-config.model.block_size:]
     
     encoded_input = encoded_input.unsqueeze(0)  # Add batch dimension
 
+    # 2. Prepare multi-modal inputs
+    raw_image_input_tensor = None
+    if config.raw_encoder.image.enabled:
+        if raw_image_input_arg == 'dummy':
+            raw_image_input_tensor = load_dummy_image(1, device, config) # Batch size 1 for inference
+        elif raw_image_input_arg is not None:
+            # Placeholder for loading actual image data
+            print(f"Loading actual image from {raw_image_input_arg} (placeholder: using dummy data)")
+            raw_image_input_tensor = load_dummy_image(1, device, config)
+    
+    raw_audio_input_tensor = None
+    if config.raw_encoder.audio.enabled:
+        if raw_audio_input_arg == 'dummy':
+            raw_audio_input_tensor = load_dummy_audio(1, device, config) # Batch size 1 for inference
+        elif raw_audio_input_arg is not None:
+            # Placeholder for loading actual audio data
+            print(f"Loading actual audio from {raw_audio_input_arg} (placeholder: using dummy data)")
+            raw_audio_input_tensor = load_dummy_audio(1, device, config)
+
+
+    # 3. Generate
     print(f"\n--- Generating with focus_strength={focus_strength:.2f} ---")
-    generated_indices = model.generate(encoded_input, max_new_tokens, focus_strength=focus_strength)
+    generated_indices = model.generate(
+        raw_text_input=encoded_input, 
+        max_new_tokens=max_new_tokens, 
+        focus_strength=focus_strength,
+        raw_image_input=raw_image_input_tensor,
+        raw_audio_input=raw_audio_input_tensor
+    )
     generated_text = tokenizer.decode(generated_indices[0].tolist())
 
+    # 4. Output
     if output_modality == "text":
-        print(f"Prompt: {raw_text_input}")
+        print(f"Prompt: {raw_text_input_str}")
         print(f"Generated: {generated_text}")
     else:
         print(f"Generated output (raw indices): {generated_indices[0].tolist()}")
@@ -74,6 +117,10 @@ if __name__ == "__main__":
                         help='Maximum number of new tokens to generate.')
     parser.add_argument('--output_modality', type=str, default="text",
                         help='Desired output modality (e.g., "text", "image", "audio").')
+    parser.add_argument('--raw_image_input', type=str, default=None,
+                        help="Path to raw image data, or 'dummy' to use random data.")
+    parser.add_argument('--raw_audio_input', type=str, default=None,
+                        help="Path to raw audio data, or 'dummy' to use random data.")
 
     args = parser.parse_args()
 
@@ -92,11 +139,14 @@ if __name__ == "__main__":
     config.model = SimpleNamespace(**config.model)
     config.raw_encoder = SimpleNamespace(**config.raw_encoder)
     config.raw_encoder.text = SimpleNamespace(**config.raw_encoder.text)
-    config.raw_encoder.image = SimpleNamespace(**config.raw_encoder.image) if hasattr(config.raw_encoder, 'image') and config.raw_encoder.image else None
-    config.raw_encoder.audio = SimpleNamespace(**config.raw_encoder.audio) if hasattr(config.raw_encoder, 'audio') and config.raw_encoder.audio else None
+    # Ensure image/audio config sections are created as SimpleNamespace if they exist and are enabled
+    # Otherwise, pass a SimpleNamespace with enabled=False to avoid errors
+    config.raw_encoder.image = SimpleNamespace(**config.raw_encoder.image) if hasattr(config.raw_encoder, 'image') and config.raw_encoder.image else SimpleNamespace(enabled=False)
+    config.raw_encoder.audio = SimpleNamespace(**config.raw_encoder.audio) if hasattr(config.raw_encoder, 'audio') and config.raw_encoder.audio else SimpleNamespace(enabled=False)
 
     config.dynamic_resolution = SimpleNamespace(**config.dynamic_resolution)
     config.output_convergence = SimpleNamespace(**config.output_convergence)
     config.training = SimpleNamespace(**config.training)
 
-    infer(config, args.model_path, args.raw_text_input, args.focus_strength, args.max_new_tokens, args.output_modality)
+    infer(config, args.model_path, args.raw_text_input, args.focus_strength, args.max_new_tokens, args.output_modality,
+          args.raw_image_input, args.raw_audio_input)
