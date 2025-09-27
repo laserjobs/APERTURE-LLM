@@ -20,7 +20,7 @@ def infer(config, model_path, raw_text_input, focus_strength, max_new_tokens, ou
     
     model = APERTURE_LLM(config).to(device)
     
-    # FIX: Add error handling for model loading
+    # Error handling for model loading
     try:
         model.load_state_dict(torch.load(model_path, map_location=device))
         print(f"Model loaded successfully from {model_path}")
@@ -33,7 +33,19 @@ def infer(config, model_path, raw_text_input, focus_strength, max_new_tokens, ou
 
     model.eval()
 
-    encoded_input = torch.tensor(tokenizer.encode(raw_text_input), dtype=torch.long, device=device).unsqueeze(0)
+    # FIX: Truncate or pad the input prompt to block_size
+    encoded_input_list = tokenizer.encode(raw_text_input)
+    encoded_input = torch.tensor(encoded_input_list, dtype=torch.long, device=device)
+    
+    if encoded_input.size(0) == 0:
+        print("Error: Input prompt is empty or contains no recognized characters.")
+        sys.exit(1)
+
+    if encoded_input.size(0) > config.model.block_size:
+        print(f"Warning: Input prompt length ({encoded_input.size(0)}) exceeds model's block_size ({config.model.block_size}). Truncating input.")
+        encoded_input = encoded_input[-config.model.block_size:]  # Truncate to block_size
+    
+    encoded_input = encoded_input.unsqueeze(0)  # Add batch dimension
 
     print(f"\n--- Generating with focus_strength={focus_strength:.2f} ---")
     generated_indices = model.generate(encoded_input, max_new_tokens, focus_strength=focus_strength)
