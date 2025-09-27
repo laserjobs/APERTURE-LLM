@@ -47,23 +47,26 @@ class NonLinearOutputConvergence(nn.Module):
 
         # Apply Top-P sampling (nucleus sampling)
         if top_p < 1.0:
-            # Sort logits in descending order
+            # Sort logits in descending order for each batch item
             sorted_logits, sorted_indices = torch.sort(logits, descending=True)
-            cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
             
-            # Create a mask to remove tokens with cumulative probability above the threshold
-            # Shift the indices to the right to keep at least one token above the threshold
+            # Calculate cumulative probabilities on the sorted logits
+            cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1) # (B, vocab_size)
+            
+            # Create a boolean mask for tokens to remove: cumulative prob > top_p
             sorted_indices_to_remove = cumulative_probs > top_p
-            # Ensure that the first token (highest probability) is never removed
-            sorted_indices_to_remove[..., 0] = False 
             
-            # --- FIX STARTS HERE ---
-            # Extract the actual indices to remove from the sorted indices
-            indices_to_remove = sorted_indices[sorted_indices_to_remove]
-            # --- FIX ENDS HERE ---
+            # Shift the indices to the right to keep at least one token (the highest prob token)
+            sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
+            sorted_indices_to_remove[..., 0] = False # Ensure the highest probability token is always kept
+            
+            # Create a mask to apply to the original `logits` tensor
+            # This maps the `sorted_indices_to_remove` (which is aligned to `sorted_logits` and `sorted_indices`)
+            # back to the positions in the original `logits` tensor.
+            mask_for_original_logits = torch.zeros_like(logits, dtype=torch.bool, device=logits.device)
+            mask_for_original_logits.scatter_(dim=-1, index=sorted_indices, src=sorted_indices_to_remove)
 
-            # Scatter the -inf values back to the original logits tensor
-            logits = logits.scatter(dim=-1, index=indices_to_remove, value=float('-inf'))
+            logits.masked_fill_(mask_for_original_logits, float('-inf'))
 
         # Sample from the adjusted probabilities
         probs = F.softmax(logits, dim=-1)
