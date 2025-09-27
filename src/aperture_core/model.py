@@ -1,7 +1,7 @@
 # src/aperture_core/model.py
 import torch
 import torch.nn as nn
-import torch.nn.functional as F # Added for cross_entropy loss
+import torch.nn.functional as F 
 
 from src.aperture_core.raw_encoders import UniversalRawTextEncoder, UniversalRawImageEncoder, UniversalRawAudioEncoder
 from src.aperture_core.multi_modal_fusion import MultiModalFusionModule
@@ -168,7 +168,9 @@ class APERTURE_LLM(nn.Module):
         return logits
 
     # IMPORTANT: Removed @torch.no_grad() from generate to allow for online adaptation
-    def generate(self, raw_text_input, max_new_tokens, focus_strength=0.0, raw_image_input=None, raw_audio_input=None, targets=None):
+    def generate(self, raw_text_input, max_new_tokens, focus_strength=0.0, 
+                 raw_image_input=None, raw_audio_input=None, targets=None, 
+                 adaptation_steps_limit=None): # Added adaptation_steps_limit
         """
         Generates a sequence of tokens autoregressively, with optional online adaptation.
         If `targets` are provided, the model performs per-step gradient updates to its parameters.
@@ -182,15 +184,13 @@ class APERTURE_LLM(nn.Module):
         initial_image_input = raw_image_input
         initial_audio_input = raw_audio_input
 
-        # `targets_sequence` is (B, T_total_targets)
-        targets_sequence = targets
+        targets_sequence = targets # (B, T_total_targets)
 
         for step in range(max_new_tokens):
             # 1. Prepare current input for the model
             idx_cond = generated_sequence if generated_sequence.size(1) <= self.config.model.block_size else generated_sequence[:, -self.config.model.block_size:]
 
             # 2. Forward pass for current step (gradients conditionally enabled)
-            # ComputationAllocator will use its 'eval' logic, but gradients will be tracked for model parameters if targets are present.
             with torch.enable_grad() if targets_sequence is not None else torch.no_grad():
                 encoded_fused_features_for_step = self._encode_and_fuse(
                     raw_text_input=idx_cond, 
@@ -212,11 +212,11 @@ class APERTURE_LLM(nn.Module):
                 focus_strength=focus_strength
             ) # (B, 1)
 
-            # --- 4. Online Adaptation Step (if targets are provided) ---
-            if targets_sequence is not None:
+            # --- 4. Online Adaptation Step (if targets are provided and within limits) ---
+            if targets_sequence is not None and \
+               (adaptation_steps_limit is None or step < adaptation_steps_limit):
+                
                 # Determine the target token for this specific generation step
-                # `generated_sequence.size(1)` is the current length *before* appending `idx_next`.
-                # This length also corresponds to the index in `targets_sequence` for the token we *should* predict.
                 current_target_idx_in_sequence = generated_sequence.size(1) 
                 
                 # Ensure target_token_idx is within bounds of targets_sequence
@@ -224,19 +224,16 @@ class APERTURE_LLM(nn.Module):
                     target_for_this_step = targets_sequence[:, current_target_idx_in_sequence] # (B,)
                     
                     # Compute adaptation loss
-                    # This loss is based on the model's prediction for the current step.
                     adaptation_loss = F.cross_entropy(logits_for_sampling, target_for_this_step)
                     
                     # Compute gradients for adaptation
                     adaptation_loss.backward()
                     
-                    # Get adaptive online learning rate from MetaLearningModule
-                    # online_lr_per_batch is (B, 1)
-                    online_lr_per_batch = self.meta_learner.get_adaptive_online_lr(current_fused_features) 
+                    # --- MITIGATION: Apply gradient clipping ---
+                    torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1.0) 
                     
-                    # Apply updates to *all* model parameters.
-                    # We take the mean of online_lr_per_batch if batch > 1 for a single scalar LR for the update.
-                    # A more complex setup might apply per-batch LR to each param's gradient.
+                    # Get adaptive online learning rate from MetaLearningModule
+                    online_lr_per_batch = self.meta_learner.get_adaptive_online_lr(current_fused_features) 
                     adaptive_lr = online_lr_per_batch.mean().item() # Scalar LR for entire batch for all params
 
                     for param in self.parameters():
@@ -248,7 +245,7 @@ class APERTURE_LLM(nn.Module):
                 else:
                     # Ran out of targets sequence for adaptation
                     if step == 0:
-                        print("Warning: Not enough targets provided for full meta-learning adaptation. Stopping online updates.")
+                        print("Warning: Not enough targets provided for full online adaptation. Stopping online updates.")
                     targets_sequence = None # Stop further adaptation
             # --- End Online Adaptation Step ---
 
