@@ -1,6 +1,8 @@
 # src/aperture_core/model.py
 import torch
 import torch.nn as nn
+import torch.nn.functional as F # Added for cross_entropy loss
+
 from src.aperture_core.raw_encoders import UniversalRawTextEncoder, UniversalRawImageEncoder, UniversalRawAudioEncoder
 from src.aperture_core.multi_modal_fusion import MultiModalFusionModule
 from src.aperture_core.dynamic_resolution import DRBlock
@@ -28,6 +30,35 @@ class ComputationAllocator(nn.Module):
         context_vector = fused_features.mean(dim=1)  # (B, embedding_dim)
         layer_weights = self.complexity_scorer(context_vector)  # (B, num_layers)
         return layer_weights
+
+class MetaLearningModule(nn.Module):
+    """
+    Provides a context-aware scalar learning rate multiplier for online adaptation.
+    Its own parameters (`base_online_lr`, `lr_multiplier_net`'s weights) are updated
+    via standard backprop during main training if involved in the loss computation,
+    or would be updated in an outer meta-training loop for true meta-learning.
+    For this prototype, it enables adaptive online updates of the main model parameters.
+    """
+    def __init__(self, config):
+        super().__init__()
+        self.config = config
+        self.lr_multiplier_net = nn.Sequential(
+            nn.Linear(config.model.embedding_dim, 32),
+            nn.ReLU(),
+            nn.Linear(32, 1),
+            nn.Sigmoid() # Output a multiplier in [0, 1]
+        )
+        # A learnable base LR for online updates of the main model.
+        # This parameter is part of the MetaLearningModule, so it will be included in self.parameters().
+        self.base_online_lr = nn.Parameter(torch.tensor(0.001)) 
+
+    def get_adaptive_online_lr(self, feedback_features):
+        # feedback_features: (B, T_fused, embedding_dim) from current context
+        context_vector = feedback_features.mean(dim=1)  # (B, embedding_dim)
+        lr_multiplier = self.lr_multiplier_net(context_vector) # (B, 1)
+        # The adaptive online LR for each item in the batch
+        return self.base_online_lr * lr_multiplier # (B, 1)
+
 
 class APERTURE_LLM(nn.Module):
     """
@@ -57,8 +88,11 @@ class APERTURE_LLM(nn.Module):
         # 4. Computation Allocator for dynamic computation paths
         self.comp_allocator = ComputationAllocator(config)
 
-        # 5. Non-linear Output Convergence Head
+        # 5. Non-linear Output Convergence Head (with Dynamic Sampling Rate)
         self.output_convergence = NonLinearOutputConvergence(config)
+
+        # 6. Self-Improving Learning Algorithm (Online Adaptation)
+        self.meta_learner = MetaLearningModule(config)
 
         # Calculate and print model parameters AFTER all modules are added
         print(f"APERTURE-LLM Model initialized with {sum(p.numel() for p in self.parameters())/1e6:.2f}M parameters")
@@ -66,7 +100,6 @@ class APERTURE_LLM(nn.Module):
     def _encode_and_fuse(self, raw_text_input, raw_image_input=None, raw_audio_input=None):
         """Helper to encode raw inputs and perform multi-modal fusion."""
         # Determine batch size from available input (raw_text_input is assumed primary for this prototype)
-        # If no text input, try to get batch size from image/audio, otherwise default to 1 for dummy tensors
         batch_size_ref = raw_text_input.size(0) if raw_text_input is not None and raw_text_input.numel() > 0 else \
                          (raw_image_input.size(0) if raw_image_input is not None and raw_image_input.numel() > 0 else \
                          (raw_audio_input.size(0) if raw_audio_input is not None and raw_audio_input.numel() > 0 else 1))
@@ -134,49 +167,94 @@ class APERTURE_LLM(nn.Module):
         logits = self.output_convergence(processed_fused_features) # (B, T_fused, vocab_size)
         return logits
 
-    @torch.no_grad()
-    def generate(self, raw_text_input, max_new_tokens, focus_strength=0.0, raw_image_input=None, raw_audio_input=None):
+    # IMPORTANT: Removed @torch.no_grad() from generate to allow for online adaptation
+    def generate(self, raw_text_input, max_new_tokens, focus_strength=0.0, raw_image_input=None, raw_audio_input=None, targets=None):
         """
-        Generates a sequence of tokens autoregressively.
+        Generates a sequence of tokens autoregressively, with optional online adaptation.
+        If `targets` are provided, the model performs per-step gradient updates to its parameters.
+        `targets` should be a (B, T_total_targets) tensor of desired continuation tokens.
         """
-        self.eval() # Set model to evaluation mode (activates computation allocation)
+        # Store original training state and set to eval mode ( ComputationAllocator uses this)
+        original_training_state = self.training
+        self.eval() 
         
-        # Start generation from text_input
         generated_sequence = raw_text_input 
-
-        # Initial context features (image/audio are fixed for the entire generation)
         initial_image_input = raw_image_input
         initial_audio_input = raw_audio_input
 
-        for _ in range(max_new_tokens):
-            # Crop input if it exceeds block_size (Transformer models have fixed context window)
+        # `targets_sequence` is (B, T_total_targets)
+        targets_sequence = targets
+
+        for step in range(max_new_tokens):
+            # 1. Prepare current input for the model
             idx_cond = generated_sequence if generated_sequence.size(1) <= self.config.model.block_size else generated_sequence[:, -self.config.model.block_size:]
 
-            # Get the full fused features (x_context) for the current sequence
-            # This is passed to the output_convergence.generate for context-aware sampling
-            encoded_fused_features_for_step = self._encode_and_fuse(
-                raw_text_input=idx_cond, 
-                raw_image_input=initial_image_input, 
-                raw_audio_input=initial_audio_input
-            )
-            current_fused_features = self._process_blocks_with_allocation(
-                encoded_fused_features_for_step, 
-                focus_strength=focus_strength
-            )
-            
-            # Get raw logits from the output convergence head for the last token
-            logits = self.output_convergence(current_fused_features) # (B, T_fused, vocab_size)
-            logits_for_sampling = logits[:, -1, :] # Focus on the last token's logits (B, vocab_size)
+            # 2. Forward pass for current step (gradients conditionally enabled)
+            # ComputationAllocator will use its 'eval' logic, but gradients will be tracked for model parameters if targets are present.
+            with torch.enable_grad() if targets_sequence is not None else torch.no_grad():
+                encoded_fused_features_for_step = self._encode_and_fuse(
+                    raw_text_input=idx_cond, 
+                    raw_image_input=initial_image_input, 
+                    raw_audio_input=initial_audio_input
+                )
+                current_fused_features = self._process_blocks_with_allocation(
+                    encoded_fused_features_for_step, 
+                    focus_strength=focus_strength
+                )
+                logits = self.output_convergence(current_fused_features) # (B, T_fused, vocab_size)
 
-            # Sample the next token using the output convergence head's strategy,
-            # passing the full fused features as context (x_context)
+            logits_for_sampling = logits[:, -1, :] # (B, vocab_size)
+
+            # 3. Sample the next token
             idx_next = self.output_convergence.generate(
                 logits_for_sampling, 
                 x_context=current_fused_features, 
                 focus_strength=focus_strength
             ) # (B, 1)
 
-            # Append sampled token to the running sequence
+            # --- 4. Online Adaptation Step (if targets are provided) ---
+            if targets_sequence is not None:
+                # Determine the target token for this specific generation step
+                # `generated_sequence.size(1)` is the current length *before* appending `idx_next`.
+                # This length also corresponds to the index in `targets_sequence` for the token we *should* predict.
+                current_target_idx_in_sequence = generated_sequence.size(1) 
+                
+                # Ensure target_token_idx is within bounds of targets_sequence
+                if current_target_idx_in_sequence < targets_sequence.size(1):
+                    target_for_this_step = targets_sequence[:, current_target_idx_in_sequence] # (B,)
+                    
+                    # Compute adaptation loss
+                    # This loss is based on the model's prediction for the current step.
+                    adaptation_loss = F.cross_entropy(logits_for_sampling, target_for_this_step)
+                    
+                    # Compute gradients for adaptation
+                    adaptation_loss.backward()
+                    
+                    # Get adaptive online learning rate from MetaLearningModule
+                    # online_lr_per_batch is (B, 1)
+                    online_lr_per_batch = self.meta_learner.get_adaptive_online_lr(current_fused_features) 
+                    
+                    # Apply updates to *all* model parameters.
+                    # We take the mean of online_lr_per_batch if batch > 1 for a single scalar LR for the update.
+                    # A more complex setup might apply per-batch LR to each param's gradient.
+                    adaptive_lr = online_lr_per_batch.mean().item() # Scalar LR for entire batch for all params
+
+                    for param in self.parameters():
+                        if param.grad is not None and param.requires_grad:
+                            param.data -= adaptive_lr * param.grad
+                            
+                    # Clear gradients for the next step before next forward pass
+                    self.zero_grad()
+                else:
+                    # Ran out of targets sequence for adaptation
+                    if step == 0:
+                        print("Warning: Not enough targets provided for full meta-learning adaptation. Stopping online updates.")
+                    targets_sequence = None # Stop further adaptation
+            # --- End Online Adaptation Step ---
+
+            # 5. Append sampled token to the running sequence
             generated_sequence = torch.cat((generated_sequence, idx_next), dim=1)
         
+        # Restore original training state
+        self.train(original_training_state)
         return generated_sequence
