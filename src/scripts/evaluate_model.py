@@ -1,6 +1,6 @@
 # src/scripts/evaluate_model.py
 import torch
-import torch.nn.functional as F # Added for perplexity calculation
+import torch.nn.functional as F
 import yaml
 from types import SimpleNamespace
 import sys
@@ -37,23 +37,34 @@ def evaluate(config, model_path, benchmark_suite):
     print("NOTE: This is a placeholder evaluation script for a prototype.")
     print("A full evaluation would involve loading specific datasets, calculating metrics (perplexity, coherence, safety), and comparing against baselines.")
 
-    dummy_eval_text = "This is a test sentence for evaluation." # Changed var name to avoid conflict if `encoded_input` was re-used in another part of the script for generation
+    dummy_eval_text = "This is a test sentence for evaluation."
     
     # Encode for loss calculation (targets are shifted input)
-    # The input for evaluating perplexity should align with how the model was trained (predicting the next character).
-    # We take the actual text, then compute loss of model's prediction of text[1:] given text[:-1]
     encoded_full_input = torch.tensor(tokenizer.encode(dummy_eval_text), dtype=torch.long, device=device).unsqueeze(0)
     
-    # Ensure encoded_full_input is not empty and has a sequence length suitable for evaluation
+    # Generate dummy multi-modal inputs for evaluation if enabled
+    raw_image_input_eval = None
+    if config.raw_encoder.image.enabled:
+        # Use batch size 1 for evaluation
+        raw_image_input_eval = torch.randn(1, 3, 224, 224, device=device)
+    
+    raw_audio_input_eval = None
+    if config.raw_encoder.audio.enabled:
+        # Use batch size 1 for evaluation
+        raw_audio_input_eval = torch.randn(1, 131072, device=device)
+
+    # Ensure encoded_full_input is not empty and has a sequence length suitable for perplexity
     if encoded_full_input.size(1) < 2:
         print("Warning: Evaluation text too short to compute perplexity.")
-        # Fallback to just generation if perplexity cannot be computed
         if encoded_full_input.size(1) == 0:
             print("No valid input characters for generation.")
             sys.exit(1)
         # If one character, still try to generate
         with torch.no_grad():
-            dummy_output = model.generate(encoded_full_input, max_new_tokens=20, focus_strength=0.7)
+            dummy_output = model.generate(
+                encoded_full_input, max_new_tokens=20, focus_strength=0.7,
+                raw_image_input=raw_image_input_eval, raw_audio_input=raw_audio_input_eval
+            )
             print(f"Example output (from short prompt): {tokenizer.decode(dummy_output[0].tolist())}")
         print("Metrics (placeholder): Coherence = 0.9, Efficiency = 0.95")
         print("\nEvaluation finished.")
@@ -64,17 +75,35 @@ def evaluate(config, model_path, benchmark_suite):
     target_for_loss = encoded_full_input[:, 1:]
 
     with torch.no_grad():
-        # Get logits for the input_for_loss sequence
-        logits = model(input_for_loss, focus_strength=0.7)
+        # Get logits for the input_for_loss sequence (now potentially multi-modal conditioned)
+        logits = model(
+            input_for_loss, 
+            raw_image_input=raw_image_input_eval, 
+            raw_audio_input=raw_audio_input_eval, 
+            focus_strength=0.7
+        )
         
-        # Calculate loss (and perplexity)
-        # Reshape logits to (N*T, V) and targets to (N*T) for CrossEntropyLoss
-        B, T, C_vocab = logits.shape
-        loss = F.cross_entropy(logits.view(B*T, C_vocab), target_for_loss.view(B*T))
+        # Calculate loss (and perplexity) - IMPORTANT: slice logits to match text length
+        B, T_fused, C_vocab = logits.shape
+        T_text = input_for_loss.size(1) # Text sequence length for loss calculation
+        
+        # Ensure T_fused is at least T_text
+        if T_fused < T_text:
+             print(f"Warning: Fused features length ({T_fused}) < text input length ({T_text}). Loss calculation may be incorrect.")
+             # Fallback to a partial loss or exit if this becomes an issue.
+             # For now, we'll try to slice as much as possible, but it indicates a data mismatch.
+             T_text = min(T_text, T_fused)
+
+        text_logits = logits[:, :T_text, :] # (B, T_text, C_vocab)
+
+        loss = F.cross_entropy(text_logits.view(B*T_text, C_vocab), target_for_loss.view(B*T_text))
         perplexity = torch.exp(loss)
 
         # For simplicity, we also print dummy output (this can use the full initial text or part of it)
-        dummy_output = model.generate(encoded_full_input, max_new_tokens=20, focus_strength=0.7)
+        dummy_output = model.generate(
+            encoded_full_input, max_new_tokens=20, focus_strength=0.7,
+            raw_image_input=raw_image_input_eval, raw_audio_input=raw_audio_input_eval
+        )
         print(f"Example output: {tokenizer.decode(dummy_output[0].tolist())}")
         print(f"Computed Perplexity: {perplexity.item():.4f}") # Display computed perplexity
         print("Metrics (placeholder): Coherence = 0.9, Efficiency = 0.95")
@@ -109,9 +138,11 @@ if __name__ == "__main__":
     config = SimpleNamespace(**config_dict)
     config.model = SimpleNamespace(**config.model)
     config.raw_encoder = SimpleNamespace(**config.raw_encoder)
+    # Ensure image/audio config sections are created as SimpleNamespace if they exist and are enabled
+    # Otherwise, pass a SimpleNamespace with enabled=False to avoid errors
     config.raw_encoder.text = SimpleNamespace(**config.raw_encoder.text)
-    config.raw_encoder.image = SimpleNamespace(**config.raw_encoder.image) if hasattr(config.raw_encoder, 'image') and config.raw_encoder.image else None
-    config.raw_encoder.audio = SimpleNamespace(**config.raw_encoder.audio) if hasattr(config.raw_encoder, 'audio') and config.raw_encoder.audio else None
+    config.raw_encoder.image = SimpleNamespace(**config.raw_encoder.image) if hasattr(config.raw_encoder, 'image') and config.raw_encoder.image else SimpleNamespace(enabled=False)
+    config.raw_encoder.audio = SimpleNamespace(**config.raw_encoder.audio) if hasattr(config.raw_encoder, 'audio') and config.raw_encoder.audio else SimpleNamespace(enabled=False)
 
     config.dynamic_resolution = SimpleNamespace(**config.dynamic_resolution)
     config.output_convergence = SimpleNamespace(**config.output_convergence)
