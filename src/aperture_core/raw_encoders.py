@@ -27,21 +27,46 @@ class UniversalRawTextEncoder(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.config = config
+        
+        # Output dimension from MultiFrequencyCharEmbedding (e.g., 96 in your config)
+        multi_freq_output_dim = config.raw_encoder.text.char_embed_dim * \
+                                config.raw_encoder.text.multi_freq_components
+
+        # The final desired embedding dimension for the model (e.g., 128 from model_config.yaml)
+        final_embedding_dim = config.model.embedding_dim
+
         self.multi_freq_embed = MultiFrequencyCharEmbedding(
             config.model.vocab_size,
             config.raw_encoder.text.char_embed_dim,
             config.raw_encoder.text.multi_freq_components
         )
-        self.output_dim = self.multi_freq_embed.total_embed_dim
-        self.pos_encoder = nn.Embedding(config.model.block_size, self.output_dim)
+        
+        # Positional encoder should now match the *final* embedding dimension
+        self.pos_encoder = nn.Embedding(config.model.block_size, final_embedding_dim)
         self.dropout = nn.Dropout(0.1)
+
+        # Add a projection layer if the multi-frequency output doesn't match the final embedding dim
+        if multi_freq_output_dim != final_embedding_dim:
+            self.projection = nn.Linear(multi_freq_output_dim, final_embedding_dim)
+        else:
+            self.projection = nn.Identity() # Use Identity if no projection needed (dimensions already match)
+
+        # Update the encoder's advertised output dimension to the final model embedding dimension
+        self.output_dim = final_embedding_dim # This will now be 128
 
     def forward(self, raw_char_indices):
         # raw_char_indices: (B, T) tensor of character indices
         B, T = raw_char_indices.shape
-        x = self.multi_freq_embed(raw_char_indices)  # (B, T, total_embed_dim)
+        
+        # Get multi-frequency character embeddings
+        x = self.multi_freq_embed(raw_char_indices)  # (B, T, multi_freq_output_dim=96)
+        
+        # Project to the final embedding dimension if necessary
+        x = self.projection(x) # (B, T, final_embedding_dim=128)
+
+        # Add positional embeddings (which also output final_embedding_dim=128)
         pos = torch.arange(0, T, dtype=torch.long, device=raw_char_indices.device)  # (T)
-        x = self.dropout(x + self.pos_encoder(pos))  # (B, T, total_embed_dim)
+        x = self.dropout(x + self.pos_encoder(pos))  # (B, T, final_embedding_dim=128)
         return x
 
 class UniversalRawImageEncoder(nn.Module):
@@ -65,6 +90,7 @@ class UniversalRawImageEncoder(nn.Module):
             raise ValueError("Image dimensions must be divisible by patch_size")
 
         self.num_patches = (self.expected_H // self.patch_size) * (self.expected_W // self.patch_size)
+        # This correctly projects to config.model.embedding_dim (128)
         self.patch_embed = nn.Linear(self.expected_C * self.patch_size * self.patch_size, config.model.embedding_dim)
         self.pos_embed = nn.Parameter(torch.randn(1, self.num_patches, config.model.embedding_dim))
         self.dropout = nn.Dropout(0.1)
@@ -85,10 +111,10 @@ class UniversalRawImageEncoder(nn.Module):
         # Reshape to (B, num_patches, C*p*p)
         patches = patches.permute(0, 2, 3, 1, 4, 5).contiguous().view(B, self.num_patches, -1)
         
-        x = self.patch_embed(patches)  # (B, num_patches, embedding_dim)
+        x = self.patch_embed(patches)  # (B, num_patches, embedding_dim=128)
         x = x + self.pos_embed
         x = self.dropout(x)
-        return x  # (B, T_image=num_patches, embedding_dim)
+        return x  # (B, T_image=num_patches, embedding_dim=128)
 
 class UniversalRawAudioEncoder(nn.Module):
     """
@@ -106,6 +132,7 @@ class UniversalRawAudioEncoder(nn.Module):
         self.num_segments = 128  # Fixed number of time segments
         self.expected_samples = self.window_size + (self.num_segments - 1) * self.hop_length # Total samples needed for fixed segments
 
+        # This correctly projects to config.model.embedding_dim (128)
         self.proj = nn.Linear(self.window_size // 2 + 1, config.model.embedding_dim) # FFT output has window_size // 2 + 1 bins
         self.pos_embed = nn.Parameter(torch.randn(1, self.num_segments, config.model.embedding_dim))
         self.dropout = nn.Dropout(0.1)
@@ -132,7 +159,7 @@ class UniversalRawAudioEncoder(nn.Module):
         # torch.fft.rfft returns complex numbers; .abs() takes magnitude
         fft_magnitude = torch.fft.rfft(windows, dim=-1).abs()  # (B, num_segments, window_size//2 + 1)
         
-        x = self.proj(fft_magnitude)  # (B, num_segments, embedding_dim)
+        x = self.proj(fft_magnitude)  # (B, num_segments, embedding_dim=128)
         x = x + self.pos_embed
         x = self.dropout(x)
-        return x  # (B, T_audio=num_segments, embedding_dim)
+        return x  # (B, T_audio=num_segments, embedding_dim=128)
