@@ -1,5 +1,6 @@
 # src/scripts/evaluate_model.py
 import torch
+import torch.nn.functional as F # Added for perplexity calculation
 import yaml
 from types import SimpleNamespace
 import sys
@@ -19,7 +20,7 @@ def evaluate(config, model_path, benchmark_suite):
 
     model = APERTURE_LLM(config).to(device)
     
-    # FIX: Add error handling for model loading
+    # Error handling for model loading
     try:
         model.load_state_dict(torch.load(model_path, map_location=device))
         print(f"Model loaded successfully from {model_path}")
@@ -36,14 +37,47 @@ def evaluate(config, model_path, benchmark_suite):
     print("NOTE: This is a placeholder evaluation script for a prototype.")
     print("A full evaluation would involve loading specific datasets, calculating metrics (perplexity, coherence, safety), and comparing against baselines.")
 
-    dummy_text = "This is a test sentence for evaluation."
-    encoded_input = torch.tensor(tokenizer.encode(dummy_text), dtype=torch.long, device=device).unsqueeze(0)
+    dummy_eval_text = "This is a test sentence for evaluation." # Changed var name to avoid conflict if `encoded_input` was re-used in another part of the script for generation
     
+    # Encode for loss calculation (targets are shifted input)
+    # The input for evaluating perplexity should align with how the model was trained (predicting the next character).
+    # We take the actual text, then compute loss of model's prediction of text[1:] given text[:-1]
+    encoded_full_input = torch.tensor(tokenizer.encode(dummy_eval_text), dtype=torch.long, device=device).unsqueeze(0)
+    
+    # Ensure encoded_full_input is not empty and has a sequence length suitable for evaluation
+    if encoded_full_input.size(1) < 2:
+        print("Warning: Evaluation text too short to compute perplexity.")
+        # Fallback to just generation if perplexity cannot be computed
+        if encoded_full_input.size(1) == 0:
+            print("No valid input characters for generation.")
+            sys.exit(1)
+        # If one character, still try to generate
+        with torch.no_grad():
+            dummy_output = model.generate(encoded_full_input, max_new_tokens=20, focus_strength=0.7)
+            print(f"Example output (from short prompt): {tokenizer.decode(dummy_output[0].tolist())}")
+        print("Metrics (placeholder): Coherence = 0.9, Efficiency = 0.95")
+        print("\nEvaluation finished.")
+        return
+
+    # Use the portion of the sequence for which we have both input and a target
+    input_for_loss = encoded_full_input[:, :-1]
+    target_for_loss = encoded_full_input[:, 1:]
+
     with torch.no_grad():
-        logits = model(encoded_input, focus_strength=0.7)
-        dummy_output = model.generate(encoded_input, max_new_tokens=20, focus_strength=0.7)
+        # Get logits for the input_for_loss sequence
+        logits = model(input_for_loss, focus_strength=0.7)
+        
+        # Calculate loss (and perplexity)
+        # Reshape logits to (N*T, V) and targets to (N*T) for CrossEntropyLoss
+        B, T, C_vocab = logits.shape
+        loss = F.cross_entropy(logits.view(B*T, C_vocab), target_for_loss.view(B*T))
+        perplexity = torch.exp(loss)
+
+        # For simplicity, we also print dummy output (this can use the full initial text or part of it)
+        dummy_output = model.generate(encoded_full_input, max_new_tokens=20, focus_strength=0.7)
         print(f"Example output: {tokenizer.decode(dummy_output[0].tolist())}")
-        print("Metrics (placeholder): Perplexity = 1.0, Coherence = 0.9, Efficiency = 0.95")
+        print(f"Computed Perplexity: {perplexity.item():.4f}") # Display computed perplexity
+        print("Metrics (placeholder): Coherence = 0.9, Efficiency = 0.95")
         print("This is dummy output; real metrics would be computed here.")
     
     print("\nEvaluation finished.")
