@@ -38,24 +38,14 @@ class DynamicResolutionAttention(nn.Module):
         attn = (q @ k.transpose(-2, -1)) * (1.0 / (self.head_dim**0.5)) # (B, nh, T, T)
 
         # Apply dynamic resolution to attention weights/dropout
-        # Lower resolve_level -> higher effective dropout / blurrier attention
-        # Higher resolve_level -> lower effective dropout / sharper attention
-        
-        # Option 1: Modulate dropout rate based on resolve_level
-        # Min dropout 0.05 at max res, max dropout 0.5 at min res
         current_dropout_rate = (1.0 - resolve_level) * 0.45 + 0.05 
         if current_dropout_rate > 0 and self.training: # Only apply if training and rate > 0
             attn = F.dropout(attn, p=current_dropout_rate, training=self.training)
 
-        # Option 2: Apply a "blurring" or "sharpening" effect to attention logits
-        # This is a conceptual implementation. A real one might use kernel convolutions or learnable filters.
-        # Here, we'll just scale the magnitude of attention values based on resolve_level,
-        # effectively making attention distributions flatter at low resolution and sharper at high resolution.
-        # The scaling factor ensures it's 1.0 at max resolve_level and smaller at lower levels.
+        # Apply a "blurring" or "sharpening" effect to attention logits
         attn = attn * (0.5 + 0.5 * resolve_level) # More flat at low res, more peaked at high res
 
         attn = F.softmax(attn, dim=-1) # (B, nh, T, T)
-        # Standard dropout after softmax is still applied
         attn = self.attn_dropout(attn) 
 
         # Weighted sum of values
