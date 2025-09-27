@@ -60,8 +60,16 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    with open(args.config, 'r') as f:
-        config_dict = yaml.safe_load(f)
+    # FIX: Add error handling for config loading
+    try:
+        with open(args.config, 'r') as f:
+            config_dict = yaml.safe_load(f)
+    except FileNotFoundError:
+        print(f"Error: Config file {args.config} not found.")
+        sys.exit(1)
+    except yaml.YAMLError as e:
+        print(f"Error: Invalid YAML format in {args.config}. Details: {e}")
+        sys.exit(1)
     
     # Convert dict to SimpleNamespace for easy attribute access
     config = SimpleNamespace(**config_dict)
