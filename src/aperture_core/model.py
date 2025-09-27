@@ -38,27 +38,24 @@ class APERTURE_LLM(nn.Module):
         self.ln_f = nn.LayerNorm(config.model.embedding_dim) # Final LayerNorm
 
         # 4. Non-linear Output Convergence Head
-        self.output_head = NonLinearOutputConvergence(config)
+        self.output_convergence = NonLinearOutputConvergence(config) # Renamed from self.output_head for consistency
 
         print(f"APERTURE-LLM Model initialized with {sum(p.numel() for p in self.parameters())/1e6:.2f}M parameters")
 
     def forward(self, raw_text_input, raw_image_input=None, raw_audio_input=None, focus_strength=0.0):
         # raw_text_input: (B, T) tensor of raw character indices
-        # raw_image_input: (B, C, H, W) or (B, dummy_dim) - Pass None if not used
-        # raw_audio_input: (B, Samples) or (B, dummy_dim) - Pass None if not used
+        # raw_image_input: (B, C, H, W) for image encoder
+        # raw_audio_input: (B, Samples) for audio encoder
         
         # 1. Encode Raw Digital Inputs
-        text_features = self.raw_text_encoder(raw_text_input) # (B, T_text, raw_embed_dim)
+        text_features = self.raw_text_encoder(raw_text_input) if raw_text_input is not None else None
         
-        # Handle image_features: Pass None if encoder not initialized or input is None
         image_features = None
         if self.raw_image_encoder is not None:
-            # If no raw_image_input is provided, pass an empty tensor for the dummy encoder to handle gracefully
-            image_features = self.raw_image_encoder(
-                raw_image_input if raw_image_input is not None else torch.empty(raw_text_input.size(0), 0, device=raw_text_input.device)
-            )
+             image_features = self.raw_image_encoder(
+                 raw_image_input if raw_image_input is not None else torch.empty(raw_text_input.size(0), 0, device=raw_text_input.device)
+             )
         
-        # Handle audio_features similarly
         audio_features = None
         if self.raw_audio_encoder is not None:
             audio_features = self.raw_audio_encoder(
@@ -84,7 +81,7 @@ class APERTURE_LLM(nn.Module):
         fused_features = self.ln_f(fused_features) # Final LayerNorm
 
         # 5. Output Convergence Head (Generates logits)
-        logits = self.output_head(fused_features) # (B, T_fused, vocab_size)
+        logits = self.output_convergence(fused_features) # (B, T_fused, vocab_size)
 
         return logits
 
@@ -102,11 +99,13 @@ class APERTURE_LLM(nn.Module):
 
             # Get logits for the next token (pass through model with current sequence)
             # Only raw_text_input is updated for generation; other modalities are kept fixed if provided initially
-            logits = self(idx_cond, raw_image_input, raw_audio_input, focus_strength=focus_strength)
+            # Pass image/audio inputs as None if not explicitly provided during generation call,
+            # so the model's forward method can handle them gracefully if their encoders are enabled.
+            logits = self(idx_cond, raw_image_input=raw_image_input, raw_audio_input=raw_audio_input, focus_strength=focus_strength)
             logits = logits[:, -1, :] # Focus on the last token's logits (B, vocab_size)
 
             # Sample the next token using the output convergence head's strategy
-            idx_next = self.output_head.generate(logits, focus_strength=focus_strength) # (B, 1)
+            idx_next = self.output_convergence.generate(logits, focus_strength=focus_strength) # (B, 1)
 
             # Append sampled token to the running sequence
             generated_sequence = torch.cat((generated_sequence, idx_next), dim=1)
