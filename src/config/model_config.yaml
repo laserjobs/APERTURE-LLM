@@ -1,38 +1,38 @@
 # src/config/model_config.yaml
 model:
-  vocab_size: 256 # For raw bytes/chars (0-255 ASCII/Unicode subset)
+  vocab_size: 256  # Will be updated by tokenizer
   embedding_dim: 128
-  num_layers: 4
+  block_size: 256
+  num_layers: 6
   num_heads: 8
-  block_size: 256 # Reduced from 512. Max input sequence length for raw encoder
 
 raw_encoder:
-  type: "text"  # Default: text-only
+  type: "multi_modal" # Changed to indicate multi-modal capability
   text:
     char_embed_dim: 32
     multi_freq_components: 3
   image:
-    enabled: false  # Set to true for image input
+    enabled: true # Enabled for multi-modal training
     input_shape: [3, 224, 224]  # C, H, W - Expected shape for UniversalRawImageEncoder
   audio:
-    enabled: false  # Set to true for audio input
+    enabled: true # Enabled for multi-modal training
     sample_rate: 16000  # For reference, not used in custom encoder directly
     num_samples: 131072  # 128 segments * 1024 window_size (approx for custom encoder)
 
 dynamic_resolution:
-  min_res_scale: 0.1 # Minimum resolution scale (e.g., for attention dropout)
-  max_res_scale: 1.0 # Maximum resolution scale
+  min_res_scale: 0.1
+  max_res_scale: 1.0
   threshold_for_boost: 0.5 # Focus strength threshold for resolution boost
 
 output_convergence:
-  convergence_temp_min: 0.1 # Minimum temperature for sampling (more decisive)
-  convergence_temp_max: 1.0 # Maximum temperature for sampling (more exploratory)
-  convergence_top_p_min: 0.1 # Minimum top_p for sampling
-  convergence_top_p_max: 0.9 # Maximum top_p for sampling
-  
+  convergence_temp_min: 0.1
+  convergence_temp_max: 1.0
+  convergence_top_p_min: 0.1
+  convergence_top_p_max: 0.9
+
 training:
-  learning_rate: 0.001
-  batch_size: 8 # Reduced from 16
+  batch_size: 8
   num_epochs: 5
+  learning_rate: 0.001
   eval_interval: 10 # Reduced from 100 for more frequent logging
-  seed: 42 # New: Seed for reproducibility
+  seed: 42
