@@ -99,7 +99,7 @@ class UniversalRawImageEncoder(nn.Module):
         # raw_pixels: (B, C, H, W)
         if raw_pixels.numel() == 0:  # Handle empty tensor if no image input
             # Return a tensor compatible with fusion: (B, T_image_dummy=1, embedding_dim)
-            return torch.empty(raw_pixels.size(0), 1, self.config.model.embedding_dim, device=raw_pixels.device)
+            return torch.empty(raw_pixels.size(0), 0, self.config.model.embedding_dim, device=raw_pixels.device)
         
         B, C, H, W = raw_pixels.shape
         if C != self.expected_C or H != self.expected_H or W != self.expected_W:
@@ -141,7 +141,7 @@ class UniversalRawAudioEncoder(nn.Module):
         # raw_waveform: (B, Samples)
         if raw_waveform.numel() == 0:  # Handle empty tensor if no audio input
             # Return a tensor compatible with fusion: (B, T_audio_dummy=1, embedding_dim)
-            return torch.empty(raw_waveform.size(0), 1, self.config.model.embedding_dim, device=raw_waveform.device)
+            return torch.empty(raw_waveform.size(0), 0, self.config.model.embedding_dim, device=raw_waveform.device)
         
         B, S = raw_waveform.shape
         if S < self.expected_samples:
