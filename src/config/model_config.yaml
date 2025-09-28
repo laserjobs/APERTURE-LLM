@@ -32,7 +32,7 @@ output_convergence:
 
 training:
   batch_size: 8
-  num_epochs: 50 # Increased from 5 to 50
+  num_epochs: 1 # REDUCED from 50 to 1 for faster CI execution
   learning_rate: 0.001
   eval_interval: 100 # Adjusted for more iterations
   seed: 42
