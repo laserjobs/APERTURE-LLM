@@ -2,6 +2,7 @@
 import torch
 import torch.nn as nn
 
+
 class MultiModalFusionModule(nn.Module):
     """
     Fuses multi-modal inputs (text, image, audio) using cross-modal attention.
@@ -14,8 +15,10 @@ class MultiModalFusionModule(nn.Module):
         # Trainable modality-specific weights for initial scaling
         self.text_weight = nn.Parameter(torch.tensor(1.0))
         # Initialized to 0.1 for faster learning from random inputs
-        self.image_weight = nn.Parameter(torch.tensor(0.1)) if config.raw_encoder.image.enabled else None
-        self.audio_weight = nn.Parameter(torch.tensor(0.1)) if config.raw_encoder.audio.enabled else None
+        self.image_weight = nn.Parameter(torch.tensor(0.1)) \
+            if config.raw_encoder.image.enabled else None
+        self.audio_weight = nn.Parameter(torch.tensor(0.1)) \
+            if config.raw_encoder.audio.enabled else None
         
         # Cross-modal attention to enable deep interaction between modalities
         # nn.MultiheadAttention expects embed_dim, num_heads, dropout
@@ -46,20 +49,25 @@ class MultiModalFusionModule(nn.Module):
             features.append(self.text_weight * text_features)
         
         # Check if image encoder is enabled AND features are provided and non-empty
-        if self.image_weight is not None and image_features is not None and image_features.numel() > 0:
+        if self.image_weight is not None and image_features is not None \
+                and image_features.numel() > 0:
             features.append(self.image_weight * image_features)
         
         # Check if audio encoder is enabled AND features are provided and non-empty
-        if self.audio_weight is not None and audio_features is not None and audio_features.numel() > 0:
+        if self.audio_weight is not None and audio_features is not None \
+                and audio_features.numel() > 0:
             features.append(self.audio_weight * audio_features)
 
         # Handle edge case: no valid features (should ideally not happen if text_features is always present)
         if not features:
             # Determine device from available (or default to 'cpu')
             device = 'cpu'
-            if text_features is not None: device = text_features.device
-            elif image_features is not None: device = image_features.device
-            elif audio_features is not None: device = audio_features.device
+            if text_features is not None:
+                device = text_features.device
+            elif image_features is not None:
+                device = image_features.device
+            elif audio_features is not None:
+                device = audio_features.device
             
             # Return a dummy tensor for batch size 1, 1 sequence element, embedding_dim
             # This case indicates an error in multi-modal setup if text is expected.
