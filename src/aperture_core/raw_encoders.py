@@ -136,7 +136,7 @@ class UniversalRawAudioEncoder(nn.Module):
         
         self.num_segments = 128  # Fixed number of time segments
         self.expected_samples = (self.window_size +
-                                 (self.num_segments - 1) * self.hop_length)  # E501 fix
+                                 (self.num_segments - 1) * self.hop_length)
 
         # This correctly projects to config.model.embedding_dim (128)
         self.proj = nn.Linear(self.window_size // 2 + 1, config.model.embedding_dim)  # FFT output has window_size // 2 + 1 bins
