@@ -1,13 +1,13 @@
-# src/scripts/infer_model.py
 import torch
 import yaml
 from types import SimpleNamespace
-import sys
-import os
-import warnings
+import warnings # Moved up
 
 # Suppress FutureWarning from torch.load
 warnings.filterwarnings("ignore", category=FutureWarning)
+
+import sys # Moved up
+import os # Moved up
 
 # Add src/aperture_core to the Python path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
@@ -103,7 +103,7 @@ def infer(config, model_path, raw_text_input_str, focus_strength, max_new_tokens
                 dummy_target_str += "the quick brown fox jumps over the lazy dog. "
                 # Add a safety break to prevent excessively long strings or infinite loops
                 if len(dummy_target_str) > required_target_len * 2:
-                    break 
+                    break
 
             targets_list = tokenizer.encode(dummy_target_str)[:required_target_len]  # Truncate to exact required length
             targets_tensor = torch.tensor(targets_list, dtype=torch.long, device=device).unsqueeze(0)
@@ -125,8 +125,8 @@ def infer(config, model_path, raw_text_input_str, focus_strength, max_new_tokens
     # 4. Generate
     print(f"\n--- Generating with focus_strength={focus_strength:.2f} ---")
     generated_indices = model.generate(
-        raw_text_input=encoded_input, 
-        max_new_tokens=max_new_tokens, 
+        raw_text_input=encoded_input,
+        max_new_tokens=max_new_tokens,
         focus_strength=focus_strength,
         raw_image_input=raw_image_input_tensor,
         raw_audio_input=raw_audio_input_tensor,
