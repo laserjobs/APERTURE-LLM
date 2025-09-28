@@ -8,6 +8,7 @@ from src.aperture_core.multi_modal_fusion import MultiModalFusionModule
 from src.aperture_core.dynamic_resolution import DRBlock
 from src.aperture_core.output_convergence import NonLinearOutputConvergence
 
+
 class ComputationAllocator(nn.Module):
     """
     Predicts per-layer activation weights based on fused input features.
@@ -30,6 +31,7 @@ class ComputationAllocator(nn.Module):
         context_vector = fused_features.mean(dim=1)  # (B, embedding_dim)
         layer_weights = self.complexity_scorer(context_vector)  # (B, num_layers)
         return layer_weights
+
 
 class MetaLearningModule(nn.Module):
     """
@@ -100,26 +102,29 @@ class APERTURE_LLM(nn.Module):
     def _encode_and_fuse(self, raw_text_input, raw_image_input=None, raw_audio_input=None):
         """Helper to encode raw inputs and perform multi-modal fusion."""
         # Determine batch size from available input (raw_text_input is assumed primary for this prototype)
-        batch_size_ref = raw_text_input.size(0) if raw_text_input is not None and raw_text_input.numel() > 0 else \
-                         (raw_image_input.size(0) if raw_image_input is not None and raw_image_input.numel() > 0 else \
-                         (raw_audio_input.size(0) if raw_audio_input is not None and raw_audio_input.numel() > 0 else 1))
+        batch_size_ref = (raw_text_input.size(0) if raw_text_input is not None and raw_text_input.numel() > 0 else
+                          (raw_image_input.size(0) if raw_image_input is not None and raw_image_input.numel() > 0 else
+                           (raw_audio_input.size(0) if raw_audio_input is not None and raw_audio_input.numel() > 0 else 1)))
         
-        device = raw_text_input.device if raw_text_input is not None and raw_text_input.numel() > 0 else \
-                 (raw_image_input.device if raw_image_input is not None and raw_image_input.numel() > 0 else \
-                 (raw_audio_input.device if raw_audio_input is not None and raw_audio_input.numel() > 0 else torch.device('cpu')))
+        device = (raw_text_input.device if raw_text_input is not None and raw_text_input.numel() > 0 else
+                  (raw_image_input.device if raw_image_input is not None and raw_image_input.numel() > 0 else
+                   (raw_audio_input.device if raw_audio_input is not None and raw_audio_input.numel() > 0 else torch.device('cpu'))))
 
-        text_features = self.raw_text_encoder(raw_text_input) if raw_text_input is not None and raw_text_input.numel() > 0 else None
+        text_features = self.raw_text_encoder(raw_text_input) \
+            if raw_text_input is not None and raw_text_input.numel() > 0 else None
         
         image_features = None
         if self.raw_image_encoder is not None:
             image_features = self.raw_image_encoder(
-                raw_image_input if raw_image_input is not None and raw_image_input.numel() > 0 else torch.empty(batch_size_ref, 0, device=device)
+                raw_image_input if raw_image_input is not None and raw_image_input.numel() > 0
+                else torch.empty(batch_size_ref, 0, device=device)
             )
         
         audio_features = None
         if self.raw_audio_encoder is not None:
             audio_features = self.raw_audio_encoder(
-                raw_audio_input if raw_audio_input is not None and raw_audio_input.numel() > 0 else torch.empty(batch_size_ref, 0, device=device)
+                raw_audio_input if raw_audio_input is not None and raw_audio_input.numel() > 0
+                else torch.empty(batch_size_ref, 0, device=device)
             )
 
         fused_features = self.multi_modal_fusion(text_features, image_features, audio_features)
@@ -133,7 +138,8 @@ class APERTURE_LLM(nn.Module):
         fused_features = encoded_fused_features # Start with fused features
 
         resolve_level = (focus_strength * 
-                         (self.config.dynamic_resolution.max_res_scale - self.config.dynamic_resolution.min_res_scale) + 
+                         (self.config.dynamic_resolution.max_res_scale -
+                          self.config.dynamic_resolution.min_res_scale) + 
                          self.config.dynamic_resolution.min_res_scale)
         resolve_level = torch.clamp(torch.tensor(resolve_level, device=fused_features.device), 
                                     self.config.dynamic_resolution.min_res_scale, 
@@ -188,7 +194,8 @@ class APERTURE_LLM(nn.Module):
 
         for step in range(max_new_tokens):
             # 1. Prepare current input for the model
-            idx_cond = generated_sequence if generated_sequence.size(1) <= self.config.model.block_size else generated_sequence[:, -self.config.model.block_size:]
+            idx_cond = generated_sequence if generated_sequence.size(1) \
+                <= self.config.model.block_size else generated_sequence[:, -self.config.model.block_size:]
 
             # 2. Forward pass for current step (gradients conditionally enabled)
             with torch.enable_grad() if targets_sequence is not None else torch.no_grad():
