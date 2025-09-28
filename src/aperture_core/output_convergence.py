@@ -2,7 +2,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import os # Added for path inspection
+import os
+
 
 class NonLinearOutputConvergence(nn.Module):
     """
@@ -10,11 +11,10 @@ class NonLinearOutputConvergence(nn.Module):
     Maps fused features to vocabulary logits and handles generation with dynamic sampling.
     Uses a context-aware neural network (SRF-inspired) to adjust temperature and top_p dynamically.
     """
-    def __init__(self, config): # This is indeed 1 positional argument (config) + self
+    def __init__(self, config):
         super().__init__()
         # Debugging print statement:
         print(f"DEBUG: Initializing NonLinearOutputConvergence from: {os.path.abspath(__file__)}")
-        # ... (rest of __init__ remains the same)
         self.config = config
         self.linear_head = nn.Linear(config.model.embedding_dim, config.model.vocab_size)
         
@@ -22,10 +22,10 @@ class NonLinearOutputConvergence(nn.Module):
         # Input: mean-pooled fused_features (embedding_dim)
         # Output: 2 scaling factors (for temperature and top_p) in [0, 1]
         self.srf_net = nn.Sequential(
-            nn.Linear(config.model.embedding_dim, 64), # Reduce dimensionality
+            nn.Linear(config.model.embedding_dim, 64),  # Reduce dimensionality
             nn.ReLU(),
-            nn.Linear(64, 2),  # Output 2 values: temp_scale, top_p_scale
-            nn.Sigmoid()       # Normalize to [0, 1]
+            nn.Linear(64, 2),   # Output 2 values: temp_scale, top_p_scale
+            nn.Sigmoid()        # Normalize to [0, 1]
         )
 
     def forward(self, x):
@@ -55,10 +55,8 @@ class NonLinearOutputConvergence(nn.Module):
         # Compute context-aware sampling parameters
         # Mean-pool over the sequence length to get a single context vector per batch item
         context_features = x_context.mean(dim=1)  # (B, embedding_dim)
-        srf_params = self.srf_net(context_features)  # (B, 2)
-        # temp_scale, top_p_scale are context-dependent multipliers, but for this simplified
-        # demo, we'll primarily use focus_strength directly for clear demonstration.
-        # temp_scale, top_p_scale = srf_params[:, 0], srf_params[:, 1]  # (B,), (B,)
+        # srf_params = self.srf_net(context_features) # F841: removed as not used in current simplified demo
+        # temp_scale, top_p_scale = srf_params[:, 0], srf_params[:, 1]
 
         # Retrieve min/max bounds from config
         temp_min = self.config.output_convergence.convergence_temp_min
@@ -86,7 +84,7 @@ class NonLinearOutputConvergence(nn.Module):
         # Probabilities for sorting and cumulative sum
         probs = F.softmax(logits, dim=-1)  # (B, vocab_size)
         sorted_probs, sorted_indices = torch.sort(probs, descending=True, dim=-1)
-        cumulative_probs = torch.cumsum(sorted_probs, dim=-1)  # (B, vocab_size)
+        cumulative_probs = torch.cumsum(sorted_probs, dim=-1)
         
         # Create a boolean mask for tokens to remove: cumulative prob > top_p
         # top_p needs to be unsqueezed for broadcasting
@@ -94,7 +92,7 @@ class NonLinearOutputConvergence(nn.Module):
         
         # Shift the indices to the right to keep at least one token (the highest prob token)
         sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
-        sorted_indices_to_remove[..., 0] = False # Ensure the highest probability token is always kept
+        sorted_indices_to_remove[..., 0] = False  # Ensure the highest probability token is always kept
         
         # Create a mask to apply to the original `logits` tensor
         mask = torch.zeros_like(logits, dtype=torch.bool, device=logits.device)
