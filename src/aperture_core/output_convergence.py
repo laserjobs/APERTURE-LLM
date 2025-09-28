@@ -2,9 +2,41 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import os # Added for path inspection
 
 class NonLinearOutputConvergence(nn.Module):
-    # ... (rest of the class remains the same)
+    """
+    Non-linear output convergence head for APERTURE-LLM.
+    Maps fused features to vocabulary logits and handles generation with dynamic sampling.
+    Uses a context-aware neural network (SRF-inspired) to adjust temperature and top_p dynamically.
+    """
+    def __init__(self, config): # This is indeed 1 positional argument (config) + self
+        super().__init__()
+        # Debugging print statement:
+        print(f"DEBUG: Initializing NonLinearOutputConvergence from: {os.path.abspath(__file__)}")
+        # ... (rest of __init__ remains the same)
+        self.config = config
+        self.linear_head = nn.Linear(config.model.embedding_dim, config.model.vocab_size)
+        
+        # SRF-inspired network to predict sampling parameters from context
+        # Input: mean-pooled fused_features (embedding_dim)
+        # Output: 2 scaling factors (for temperature and top_p) in [0, 1]
+        self.srf_net = nn.Sequential(
+            nn.Linear(config.model.embedding_dim, 64), # Reduce dimensionality
+            nn.ReLU(),
+            nn.Linear(64, 2),  # Output 2 values: temp_scale, top_p_scale
+            nn.Sigmoid()       # Normalize to [0, 1]
+        )
+
+    def forward(self, x):
+        """
+        Maps fused features to logits. This is used during training and as the first step in generation.
+        Args:
+            x: (B, T_fused, embedding_dim) tensor from DRBlocks/final LayerNorm
+        Returns:
+            logits: (B, T_fused, vocab_size)
+        """
+        return self.linear_head(x)
 
     def generate(self, logits, x_context, focus_strength=0.5):
         """
@@ -24,7 +56,9 @@ class NonLinearOutputConvergence(nn.Module):
         # Mean-pool over the sequence length to get a single context vector per batch item
         context_features = x_context.mean(dim=1)  # (B, embedding_dim)
         srf_params = self.srf_net(context_features)  # (B, 2)
-        temp_scale, top_p_scale = srf_params[:, 0], srf_params[:, 1]  # (B,), (B,)
+        # temp_scale, top_p_scale are context-dependent multipliers, but for this simplified
+        # demo, we'll primarily use focus_strength directly for clear demonstration.
+        # temp_scale, top_p_scale = srf_params[:, 0], srf_params[:, 1]  # (B,), (B,)
 
         # Retrieve min/max bounds from config
         temp_min = self.config.output_convergence.convergence_temp_min
@@ -35,7 +69,7 @@ class NonLinearOutputConvergence(nn.Module):
         # --- MODIFIED: Dynamic temperature calculation ---
         # High focus_strength -> lower temperature (more deterministic)
         # Low focus_strength -> higher temperature (more exploratory)
-        # Use (1.0 - focus_strength_tensor) to get an 'exploration_strength'
+        # Use (1.0 - focus_strength_tensor) for 'exploration_strength' factor
         temperature = temp_min + (temp_max - temp_min) * (1.0 - focus_strength_tensor)
         temperature = torch.clamp(temperature, temp_min, temp_max)  # (B,) - ensure it's a batch of temps
 
