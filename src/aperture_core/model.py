@@ -1,7 +1,7 @@
 # src/aperture_core/model.py
 import torch
 import torch.nn as nn
-import torch.nn.functional as F 
+import torch.nn.functional as F
 
 from src.aperture_core.raw_encoders import UniversalRawTextEncoder, UniversalRawImageEncoder, UniversalRawAudioEncoder
 from src.aperture_core.multi_modal_fusion import MultiModalFusionModule
@@ -48,18 +48,18 @@ class MetaLearningModule(nn.Module):
             nn.Linear(config.model.embedding_dim, 32),
             nn.ReLU(),
             nn.Linear(32, 1),
-            nn.Sigmoid() # Output a multiplier in [0, 1]
+            nn.Sigmoid()  # Output a multiplier in [0, 1]
         )
         # A learnable base LR for online updates of the main model.
         # This parameter is part of the MetaLearningModule, so it will be included in self.parameters().
-        self.base_online_lr = nn.Parameter(torch.tensor(0.001)) 
+        self.base_online_lr = nn.Parameter(torch.tensor(0.001))
 
     def get_adaptive_online_lr(self, feedback_features):
         # feedback_features: (B, T_fused, embedding_dim) from current context
         context_vector = feedback_features.mean(dim=1)  # (B, embedding_dim)
-        lr_multiplier = self.lr_multiplier_net(context_vector) # (B, 1)
+        lr_multiplier = self.lr_multiplier_net(context_vector)  # (B, 1)
         # The adaptive online LR for each item in the batch
-        return self.base_online_lr * lr_multiplier # (B, 1)
+        return self.base_online_lr * lr_multiplier  # (B, 1)
 
 
 class APERTURE_LLM(nn.Module):
@@ -75,10 +75,10 @@ class APERTURE_LLM(nn.Module):
         self.raw_text_encoder = UniversalRawTextEncoder(config)
         self.raw_image_encoder = None
         if hasattr(config.raw_encoder, 'image') and getattr(config.raw_encoder.image, 'enabled', False):
-             self.raw_image_encoder = UniversalRawImageEncoder(config)
+            self.raw_image_encoder = UniversalRawImageEncoder(config)
         self.raw_audio_encoder = None
         if hasattr(config.raw_encoder, 'audio') and getattr(config.raw_encoder.audio, 'enabled', False):
-             self.raw_audio_encoder = UniversalRawAudioEncoder(config)
+            self.raw_audio_encoder = UniversalRawAudioEncoder(config)
 
         # 2. Multi-Modal Fusion Module
         self.multi_modal_fusion = MultiModalFusionModule(config)
@@ -97,18 +97,25 @@ class APERTURE_LLM(nn.Module):
         self.meta_learner = MetaLearningModule(config)
 
         # Calculate and print model parameters AFTER all modules are added
-        print(f"APERTURE-LLM Model initialized with {sum(p.numel() for p in self.parameters())/1e6:.2f}M parameters")
+        print(f"APERTURE-LLM Model initialized with "
+              f"{sum(p.numel() for p in self.parameters())/1e6:.2f}M parameters")
 
     def _encode_and_fuse(self, raw_text_input, raw_image_input=None, raw_audio_input=None):
         """Helper to encode raw inputs and perform multi-modal fusion."""
         # Determine batch size from available input (raw_text_input is assumed primary for this prototype)
-        batch_size_ref = (raw_text_input.size(0) if raw_text_input is not None and raw_text_input.numel() > 0 else
-                          (raw_image_input.size(0) if raw_image_input is not None and raw_image_input.numel() > 0 else
-                           (raw_audio_input.size(0) if raw_audio_input is not None and raw_audio_input.numel() > 0 else 1)))
+        batch_size_ref = (raw_text_input.size(0)
+                          if raw_text_input is not None and raw_text_input.numel() > 0 else
+                          (raw_image_input.size(0)
+                           if raw_image_input is not None and raw_image_input.numel() > 0 else
+                           (raw_audio_input.size(0)
+                            if raw_audio_input is not None and raw_audio_input.numel() > 0 else 1)))
         
-        device = (raw_text_input.device if raw_text_input is not None and raw_text_input.numel() > 0 else
-                  (raw_image_input.device if raw_image_input is not None and raw_image_input.numel() > 0 else
-                   (raw_audio_input.device if raw_audio_input is not None and raw_audio_input.numel() > 0 else torch.device('cpu'))))
+        device = (raw_text_input.device
+                  if raw_text_input is not None and raw_text_input.numel() > 0 else
+                  (raw_image_input.device
+                   if raw_image_input is not None and raw_image_input.numel() > 0 else
+                   (raw_audio_input.device
+                    if raw_audio_input is not None and raw_audio_input.numel() > 0 else torch.device('cpu'))))
 
         text_features = self.raw_text_encoder(raw_text_input) \
             if raw_text_input is not None and raw_text_input.numel() > 0 else None
@@ -128,39 +135,39 @@ class APERTURE_LLM(nn.Module):
             )
 
         fused_features = self.multi_modal_fusion(text_features, image_features, audio_features)
-        return fused_features # (B, T_fused, embedding_dim)
+        return fused_features  # (B, T_fused, embedding_dim)
 
     def _process_blocks_with_allocation(self, encoded_fused_features, focus_strength=0.0):
         """
         Helper to process features through DRBlocks, applying dynamic computation allocation
         during inference.
         """
-        fused_features = encoded_fused_features # Start with fused features
+        fused_features = encoded_fused_features  # Start with fused features
 
-        resolve_level = (focus_strength * 
+        resolve_level = (focus_strength *
                          (self.config.dynamic_resolution.max_res_scale -
-                          self.config.dynamic_resolution.min_res_scale) + 
+                          self.config.dynamic_resolution.min_res_scale) +
                          self.config.dynamic_resolution.min_res_scale)
-        resolve_level = torch.clamp(torch.tensor(resolve_level, device=fused_features.device), 
-                                    self.config.dynamic_resolution.min_res_scale, 
+        resolve_level = torch.clamp(torch.tensor(resolve_level, device=fused_features.device),
+                                    self.config.dynamic_resolution.min_res_scale,
                                     self.config.dynamic_resolution.max_res_scale).item()
 
-        if self.training: # During training, always apply all blocks for gradient flow
+        if self.training:  # During training, always apply all blocks for gradient flow
             for block in self.dr_blocks:
                 fused_features = fused_features + block(fused_features, resolve_level=resolve_level)
-        else: # During inference/evaluation, apply blocks based on ComputationAllocator
-            layer_weights = self.comp_allocator(fused_features) # (B, num_layers)
+        else:  # During inference/evaluation, apply blocks based on ComputationAllocator
+            layer_weights = self.comp_allocator(fused_features)  # (B, num_layers)
             for i, block in enumerate(self.dr_blocks):
                 # Create a binary mask for each block in the batch.
                 # Threshold of 0.5 for Sigmoid output; if weight > 0.5, block is "active".
-                mask = (layer_weights[:, i:i+1] > 0.5).float() # (B, 1)
+                mask = (layer_weights[:, i:i+1] > 0.5).float()  # (B, 1)
                 
                 block_output = block(fused_features, resolve_level=resolve_level)
                 
                 # Selectively add block output based on mask.
-                fused_features = fused_features + block_output * mask.unsqueeze(1) # Apply block if mask is 1
+                fused_features = fused_features + block_output * mask.unsqueeze(1)  # Apply block if mask is 1
 
-        fused_features = self.ln_f(fused_features) # Final LayerNorm
+        fused_features = self.ln_f(fused_features)  # Final LayerNorm
         return fused_features
 
 
@@ -170,13 +177,13 @@ class APERTURE_LLM(nn.Module):
         """
         encoded_fused_features = self._encode_and_fuse(raw_text_input, raw_image_input, raw_audio_input)
         processed_fused_features = self._process_blocks_with_allocation(encoded_fused_features, focus_strength)
-        logits = self.output_convergence(processed_fused_features) # (B, T_fused, vocab_size)
+        logits = self.output_convergence(processed_fused_features)  # (B, T_fused, vocab_size)
         return logits
 
     # IMPORTANT: Removed @torch.no_grad() from generate to allow for online adaptation
-    def generate(self, raw_text_input, max_new_tokens, focus_strength=0.0, 
-                 raw_image_input=None, raw_audio_input=None, targets=None, 
-                 adaptation_steps_limit=None): # Added adaptation_steps_limit
+    def generate(self, raw_text_input, max_new_tokens, focus_strength=0.0,
+                 raw_image_input=None, raw_audio_input=None, targets=None,
+                 adaptation_steps_limit=None):  # Added adaptation_steps_limit
         """
         Generates a sequence of tokens autoregressively, with optional online adaptation.
         If `targets` are provided, the model performs per-step gradient updates to its parameters.
@@ -190,7 +197,7 @@ class APERTURE_LLM(nn.Module):
         initial_image_input = raw_image_input
         initial_audio_input = raw_audio_input
 
-        targets_sequence = targets # (B, T_total_targets)
+        targets_sequence = targets  # (B, T_total_targets)
 
         for step in range(max_new_tokens):
             # 1. Prepare current input for the model
@@ -208,16 +215,16 @@ class APERTURE_LLM(nn.Module):
                     encoded_fused_features_for_step, 
                     focus_strength=focus_strength
                 )
-                logits = self.output_convergence(current_fused_features) # (B, T_fused, vocab_size)
+                logits = self.output_convergence(current_fused_features)  # (B, T_fused, vocab_size)
 
-            logits_for_sampling = logits[:, -1, :] # (B, vocab_size)
+            logits_for_sampling = logits[:, -1, :]  # (B, vocab_size)
 
             # 3. Sample the next token
             idx_next = self.output_convergence.generate(
                 logits_for_sampling, 
                 x_context=current_fused_features, 
                 focus_strength=focus_strength
-            ) # (B, 1)
+            )  # (B, 1)
 
             # --- 4. Online Adaptation Step (if targets are provided and within limits) ---
             if targets_sequence is not None and \
@@ -228,7 +235,7 @@ class APERTURE_LLM(nn.Module):
                 
                 # Ensure target_token_idx is within bounds of targets_sequence
                 if current_target_idx_in_sequence < targets_sequence.size(1):
-                    target_for_this_step = targets_sequence[:, current_target_idx_in_sequence] # (B,)
+                    target_for_this_step = targets_sequence[:, current_target_idx_in_sequence]  # (B,)
                     
                     # Compute adaptation loss
                     adaptation_loss = F.cross_entropy(logits_for_sampling, target_for_this_step)
@@ -241,7 +248,7 @@ class APERTURE_LLM(nn.Module):
                     
                     # Get adaptive online learning rate from MetaLearningModule
                     online_lr_per_batch = self.meta_learner.get_adaptive_online_lr(current_fused_features) 
-                    adaptive_lr = online_lr_per_batch.mean().item() # Scalar LR for entire batch for all params
+                    adaptive_lr = online_lr_per_batch.mean().item()  # Scalar LR for entire batch for all params
 
                     for param in self.parameters():
                         if param.grad is not None and param.requires_grad:
@@ -252,8 +259,9 @@ class APERTURE_LLM(nn.Module):
                 else:
                     # Ran out of targets sequence for adaptation
                     if step == 0:
-                        print("Warning: Not enough targets provided for full online adaptation. Stopping online updates.")
-                    targets_sequence = None # Stop further adaptation
+                        print("Warning: Not enough targets provided for full online adaptation."
+                              " Stopping online updates.")
+                    targets_sequence = None  # Stop further adaptation
             # --- End Online Adaptation Step ---
 
             # 5. Append sampled token to the running sequence
