@@ -14,6 +14,7 @@ from tqdm import tqdm
 from aperture_core.model import APERTURE_LLM
 from aperture_core.utils import get_batch, CharTokenizer, set_seed
 
+
 def train(config):
     set_seed(config.training.seed)  # Set seed at the start of training
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
