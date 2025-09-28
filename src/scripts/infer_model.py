@@ -1,9 +1,11 @@
 import sys
 import os
 import warnings
+import argparse
+from types import SimpleNamespace
+
 import torch
 import yaml
-from types import SimpleNamespace
 
 # Suppress FutureWarning from torch.load
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -144,8 +146,6 @@ def infer(config, model_path, raw_text_input_str, focus_strength, max_new_tokens
 
 
 if __name__ == "__main__":
-    import argparse
-
     parser = argparse.ArgumentParser(description="Infer with APERTURE-LLM.")
     parser.add_argument('--config', type=str, default='src/config/model_config.yaml',
                         help='Path to the model configuration YAML file.')
