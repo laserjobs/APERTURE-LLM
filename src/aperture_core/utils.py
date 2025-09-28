@@ -1,4 +1,3 @@
-# src/aperture_core/utils.py
 import torch
 import numpy as np
 import random
