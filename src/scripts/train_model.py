@@ -1,6 +1,8 @@
 import sys
 import os
-import warnings # Added warnings to train_model.py
+# Add src/aperture_core to the Python path FIRST to resolve E402
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+
 import argparse
 from types import SimpleNamespace
 
@@ -9,9 +11,6 @@ import torch.nn as nn
 import torch.optim as optim
 import yaml
 from tqdm import tqdm
-
-# Add src/aperture_core to the Python path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from aperture_core.model import APERTURE_LLM
 from aperture_core.utils import get_batch, CharTokenizer, set_seed
@@ -29,7 +28,7 @@ def train(config):
     # REDUCED multiplier from * 10000 to * 100 for faster CI execution
     dummy_text = ("This is a simple text string for demonstration. The APERTURE LLM aims to be "
                   "the best LLM available. It processes raw digital inputs directly. "
-                  "Hello World 123!@#$%^&*()_+-=[]{}|;':\",./<>?~`") * 100 # Adjusted multiplier
+                  "Hello World 123!@#$%^&*()_+-=[]{}|;':\",./<>?~`") * 100
     data = torch.tensor(tokenizer.encode(dummy_text), dtype=torch.long)
 
     # Update vocab_size in config based on actual tokenizer vocab size
