@@ -140,7 +140,7 @@ class UniversalRawAudioEncoder(nn.Module):
 
         # This correctly projects to config.model.embedding_dim (128)
         self.proj = nn.Linear(self.window_size // 2 + 1,
-                              config.model.embedding_dim)  # E501 fix
+                              config.model.embedding_dim)
         self.pos_embed = nn.Parameter(torch.randn(1, self.num_segments, config.model.embedding_dim))
         self.dropout = nn.Dropout(0.1)
 
