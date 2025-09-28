@@ -1,16 +1,16 @@
-import torch
-import yaml
-from types import SimpleNamespace
-import warnings # Moved up
+import sys
+import os
+import warnings
 
 # Suppress FutureWarning from torch.load
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-import sys # Moved up
-import os # Moved up
-
 # Add src/aperture_core to the Python path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+
+import torch
+import yaml
+from types import SimpleNamespace
 
 from aperture_core.model import APERTURE_LLM
 from aperture_core.utils import CharTokenizer, set_seed
@@ -40,9 +40,9 @@ def infer(config, model_path, raw_text_input_str, focus_strength, max_new_tokens
 
     tokenizer = CharTokenizer()
     config.model.vocab_size = tokenizer.vocab_size
-    
+
     model = APERTURE_LLM(config).to(device)
-    
+
     # Error handling for model loading
     try:
         model.load_state_dict(torch.load(model_path, map_location=device, weights_only=False))
@@ -57,7 +57,7 @@ def infer(config, model_path, raw_text_input_str, focus_strength, max_new_tokens
     # 1. Prepare text input
     encoded_input_list = tokenizer.encode(raw_text_input_str)
     encoded_input = torch.tensor(encoded_input_list, dtype=torch.long, device=device)
-    
+
     if encoded_input.size(0) == 0:
         print("Error: Input prompt is empty or contains no recognized characters.")
         sys.exit(1)
@@ -67,7 +67,7 @@ def infer(config, model_path, raw_text_input_str, focus_strength, max_new_tokens
         print(f"Warning: Input prompt length ({encoded_input.size(0)}) exceeds model's block_size "
               f"({config.model.block_size}). Truncating input.")
         encoded_input = encoded_input[-config.model.block_size:]
-    
+
     encoded_input = encoded_input.unsqueeze(0)  # Add batch dimension
 
     # 2. Prepare multi-modal inputs
@@ -79,7 +79,7 @@ def infer(config, model_path, raw_text_input_str, focus_strength, max_new_tokens
             # Placeholder for loading actual image data
             print(f"Loading actual image from {raw_image_input_arg} (placeholder: using dummy data)")
             raw_image_input_tensor = load_dummy_image(1, device, config)
-    
+
     raw_audio_input_tensor = None
     if config.raw_encoder.audio.enabled:
         if raw_audio_input_arg == 'dummy':
@@ -96,7 +96,7 @@ def infer(config, model_path, raw_text_input_str, focus_strength, max_new_tokens
             # Create a dummy target sequence. It needs to be AT LEAST as long as prompt + max_new_tokens.
             # `encoded_input.size(1)` is the prompt length.
             required_target_len = encoded_input.size(1) + max_new_tokens
-            
+
             dummy_target_str = raw_text_input_str + " "  # Start with prompt text
             # Append repeated text until it's long enough
             while len(tokenizer.encode(dummy_target_str)) < required_target_len:
@@ -115,7 +115,7 @@ def infer(config, model_path, raw_text_input_str, focus_strength, max_new_tokens
             # with open(targets_arg, 'r') as f:
             #     target_text = f.read()
             # targets_list = tokenizer.encode(target_text)
-            
+
             # For this prototype, we'll still use dummy logic if a file path is given
             dummy_target_str = raw_text_input_str + " the quick brown fox jumps over the lazy dog."
             targets_list = tokenizer.encode(dummy_target_str)
@@ -181,7 +181,7 @@ if __name__ == "__main__":
     except yaml.YAMLError as e:
         print(f"Error: Invalid YAML format in {args.config}. Details: {e}")
         sys.exit(1)
-    
+
     config = SimpleNamespace(**config_dict)
     config.model = SimpleNamespace(**config.model)
     config.raw_encoder = SimpleNamespace(**config.raw_encoder)
