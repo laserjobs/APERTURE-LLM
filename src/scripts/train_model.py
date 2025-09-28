@@ -27,7 +27,7 @@ def train(config):
     # Further REDUCED multiplier for faster CI execution and to avoid timeouts
     dummy_text = ("This is a simple text string for demonstration. The APERTURE LLM aims to be "
                   "the best LLM available. It processes raw digital inputs directly. "
-                  "Hello World 123!@#$%^&*()_+-=[]{}|;':\",./<>?~`") * 10 # Or * 20 if still too fast
+                  "Hello World 123!@#$%^&*()_+-=[]{}|;':\",./<>?~`") * 10  # Or * 20 if still too fast
     data = torch.tensor(tokenizer.encode(dummy_text), dtype=torch.long)
 
     # Update vocab_size in config based on actual tokenizer vocab size
