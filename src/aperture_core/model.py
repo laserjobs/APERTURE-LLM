@@ -99,6 +99,7 @@ class APERTURE_LLM(nn.Module):
         print(f"APERTURE-LLM Model initialized with "
               f"{sum(p.numel() for p in self.parameters())/1e6:.2f}M parameters")
 
+
     def _encode_and_fuse(self, raw_text_input, raw_image_input=None, raw_audio_input=None):
         """Helper to encode raw inputs and perform multi-modal fusion."""
         # Determine batch size from available input (raw_text_input is assumed primary for this prototype)
@@ -135,6 +136,7 @@ class APERTURE_LLM(nn.Module):
 
         fused_features = self.multi_modal_fusion(text_features, image_features, audio_features)
         return fused_features  # (B, T_fused, embedding_dim)
+
 
     def _process_blocks_with_allocation(self, encoded_fused_features, focus_strength=0.0):
         """
