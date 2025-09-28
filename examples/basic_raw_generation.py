@@ -10,7 +10,7 @@ os.chdir(project_root)
 
 # --- Configuration ---
 config_path = "src/config/model_config.yaml"
-model_file = "aperture_llm_model_epoch_5.pt"
+model_file = "aperture_llm_model_epoch_50.pt" # Updated to reflect 50 epochs
 seed_value = 42 # Consistent seed for reproducibility
 
 # --- Prepare PYTHONPATH for subprocesses ---
@@ -51,7 +51,7 @@ infer_command_low_focus = [
     "--model_path", model_file,
     "--raw_text_input", "The future of AI is",
     "--focus_strength", "0.2",
-    "--max_new_tokens", "50"
+    "--max_new_tokens", "100" # Increased from 50
 ]
 infer_result_low = subprocess.run(infer_command_low_focus, capture_output=True, text=True, env=subprocess_env) # Pass env
 print(infer_result_low.stdout)
@@ -66,7 +66,7 @@ infer_command_high_focus = [
     "--model_path", model_file,
     "--raw_text_input", "The future of AI is",
     "--focus_strength", "0.9",
-    "--max_new_tokens", "50"
+    "--max_new_tokens", "100" # Increased from 50
 ]
 infer_result_high = subprocess.run(infer_command_high_focus, capture_output=True, text=True, env=subprocess_env) # Pass env
 print(infer_result_high.stdout)
