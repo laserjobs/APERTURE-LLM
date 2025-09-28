@@ -8,7 +8,7 @@ os.chdir(project_root)
 
 # --- Configuration ---
 config_path = "src/config/model_config.yaml"
-model_file = "aperture_llm_model_epoch_50.pt"  # Updated to reflect 50 epochs
+model_file = "aperture_llm_model_epoch_1.pt"  # Updated to reflect num_epochs: 1 from model_config.yaml
 seed_value = 42  # Consistent seed for reproducibility
 
 # --- Prepare PYTHONPATH for subprocesses ---
