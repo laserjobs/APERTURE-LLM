@@ -14,7 +14,7 @@ class NonLinearOutputConvergence(nn.Module):
         super().__init__()
         # Debugging print statement:
         print(f"DEBUG: Initializing NonLinearOutputConvergence from: "
-              f"{os.path.abspath(__file__)}")  # E501 fix
+              f"{os.path.abspath(__file__)}")
         self.config = config
         self.linear_head = nn.Linear(config.model.embedding_dim, config.model.vocab_size)
 
