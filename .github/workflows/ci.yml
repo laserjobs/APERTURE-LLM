@@ -11,6 +11,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30 # Add a timeout for the entire job (e.g., 30 minutes)
     strategy:
       matrix:
         python-version: ["3.8", "3.9", "3.10"]
@@ -21,6 +22,15 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v3 # Use actions/cache to speed up dependency installation
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-python-${{ matrix.python-version }}-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-python-${{ matrix.python-version }}-
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -35,4 +45,8 @@ jobs:
       - name: Run a dummy train/infer/eval sequence (conceptual check)
         # This is a very light check, not full training
         run: |
+          # The examples/basic_raw_generation.py script will now produce
+          # aperture_llm_model_epoch_50.pt based on the updated config.
+          # We need to make sure the script itself is up-to-date with this expectation.
+          # The provided examples/basic_raw_generation.py already handles this change.
           python examples/basic_raw_generation.py
