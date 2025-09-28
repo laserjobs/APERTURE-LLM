@@ -5,7 +5,7 @@ import yaml
 from types import SimpleNamespace
 import sys
 import os
-import warnings # Added
+import warnings
 
 # Suppress FutureWarning from torch.load
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -14,6 +14,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from aperture_core.model import APERTURE_LLM
 from aperture_core.utils import CharTokenizer, set_seed
+
 
 def evaluate(config, model_path, benchmark_suite):
     set_seed(config.training.seed)
@@ -26,7 +27,7 @@ def evaluate(config, model_path, benchmark_suite):
     
     # Error handling for model loading
     try:
-        model.load_state_dict(torch.load(model_path, map_location=device, weights_only=False)) # Added weights_only=False
+        model.load_state_dict(torch.load(model_path, map_location=device, weights_only=False))
         print(f"Model loaded successfully from {model_path}")
     except FileNotFoundError:
         print(f"Error: Model checkpoint {model_path} not found.")
@@ -35,16 +36,18 @@ def evaluate(config, model_path, benchmark_suite):
         print(f"Error: Failed to load model checkpoint {model_path}. Details: {e}")
         sys.exit(1)
 
-    model.eval() # Ensure model is in eval mode for inference-time behaviors
+    model.eval()  # Ensure model is in eval mode for inference-time behaviors
 
     print(f"\n--- Evaluating on {benchmark_suite} ---")
     print("NOTE: This is a placeholder evaluation script for a prototype.")
-    print("A full evaluation would involve loading specific datasets, calculating metrics (perplexity, coherence, safety), and comparing against baselines.")
+    print("A full evaluation would involve loading specific datasets, calculating metrics "
+          "(perplexity, coherence, safety), and comparing against baselines.")
 
     dummy_eval_text = "This is a test sentence for evaluation."
     
     # Encode for loss calculation (targets are shifted input)
-    encoded_full_input = torch.tensor(tokenizer.encode(dummy_eval_text), dtype=torch.long, device=device).unsqueeze(0)
+    encoded_full_input = torch.tensor(tokenizer.encode(dummy_eval_text),
+                                      dtype=torch.long, device=device).unsqueeze(0)
     
     # Generate dummy multi-modal inputs for evaluation if enabled in config
     raw_image_input_eval = None
@@ -78,7 +81,7 @@ def evaluate(config, model_path, benchmark_suite):
     input_for_loss = encoded_full_input[:, :-1]
     target_for_loss = encoded_full_input[:, 1:]
 
-    with torch.no_grad(): # Ensure no gradients are tracked during evaluation's forward pass
+    with torch.no_grad():  # Ensure no gradients are tracked during evaluation's forward pass
         # Get logits for the input_for_loss sequence (now potentially multi-modal conditioned)
         logits = model(
             input_for_loss, 
@@ -89,14 +92,15 @@ def evaluate(config, model_path, benchmark_suite):
         
         # Calculate loss (and perplexity) - IMPORTANT: slice logits to match text length
         B, T_fused, C_vocab = logits.shape
-        T_text = input_for_loss.size(1) # Text sequence length for loss calculation
+        T_text = input_for_loss.size(1)  # Text sequence length for loss calculation
         
         # Ensure T_fused is at least T_text
         if T_fused < T_text:
-             print(f"Warning: Fused features length ({T_fused}) is less than expected text input length ({T_text}). Adjusting text_logits slice.")
-             T_text = min(T_text, T_fused) # Adjust T_text to prevent IndexError
+            print(f"Warning: Fused features length ({T_fused}) is less than expected text input "
+                  f"length ({T_text}). Adjusting text_logits slice.")
+            T_text = min(T_text, T_fused)  # Adjust T_text to prevent IndexError
 
-        text_logits = logits[:, :T_text, :] # (B, T_text, C_vocab)
+        text_logits = logits[:, :T_text, :]  # (B, T_text, C_vocab)
 
         loss = F.cross_entropy(text_logits.view(B*T_text, C_vocab), target_for_loss.view(B*T_text))
         perplexity = torch.exp(loss)
@@ -108,11 +112,12 @@ def evaluate(config, model_path, benchmark_suite):
             # Note: `targets=None` by default in evaluation, so no online adaptation here
         )
         print(f"Example output: {tokenizer.decode(dummy_output[0].tolist())}")
-        print(f"Computed Perplexity: {perplexity.item():.4f}") # Display computed perplexity
+        print(f"Computed Perplexity: {perplexity.item():.4f}")
         print("Metrics (placeholder): Coherence = 0.9, Efficiency = 0.95")
         print("This is dummy output; real metrics would be computed here.")
     
     print("\nEvaluation finished.")
+
 
 if __name__ == "__main__":
     import argparse
@@ -143,8 +148,12 @@ if __name__ == "__main__":
     config.raw_encoder = SimpleNamespace(**config.raw_encoder)
     # Ensure image/audio config sections are created as SimpleNamespace if they exist and are enabled
     config.raw_encoder.text = SimpleNamespace(**config.raw_encoder.text)
-    config.raw_encoder.image = SimpleNamespace(**config.raw_encoder.image) if hasattr(config.raw_encoder, 'image') and config.raw_encoder.image else SimpleNamespace(enabled=False)
-    config.raw_encoder.audio = SimpleNamespace(**config.raw_encoder.audio) if hasattr(config.raw_encoder, 'audio') and config.raw_encoder.audio else SimpleNamespace(enabled=False)
+    config.raw_encoder.image = (SimpleNamespace(**config.raw_encoder.image)
+                                if hasattr(config.raw_encoder, 'image') and config.raw_encoder.image
+                                else SimpleNamespace(enabled=False))
+    config.raw_encoder.audio = (SimpleNamespace(**config.raw_encoder.audio)
+                                if hasattr(config.raw_encoder, 'audio') and config.raw_encoder.audio
+                                else SimpleNamespace(enabled=False))
 
     config.dynamic_resolution = SimpleNamespace(**config.dynamic_resolution)
     config.output_convergence = SimpleNamespace(**config.output_convergence)
