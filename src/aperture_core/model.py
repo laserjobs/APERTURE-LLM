@@ -179,7 +179,7 @@ class APERTURE_LLM(nn.Module):
         logits = self.output_convergence(processed_fused_features)  # (B, T_fused, vocab_size)
         return logits
 
-    # IMPORTANT: Removed @torch.no_grad() from generate to allow for online adaptation
+
     def generate(self, raw_text_input, max_new_tokens, focus_strength=0.0,
                  raw_image_input=None, raw_audio_input=None, targets=None,
                  adaptation_steps_limit=None):  # Added adaptation_steps_limit
