@@ -1,7 +1,7 @@
 # examples/basic_raw_generation.py
 import subprocess
 import os
-import shutil
+# import shutil # F401: 'shutil' imported but unused - REMOVED
 import sys # Import sys
 
 # Ensure we are in the root directory
@@ -43,7 +43,7 @@ if not os.path.exists(model_file):
     print(f"Error: Model file '{model_file}' not found after training. Training may have failed.")
     exit(1)
 
-print(f"\n--- Running Inference with low focus_strength (more exploratory) ---")
+print("\n--- Running Inference with low focus_strength (more exploratory) ---") # F541, E261 fixed
 print("Expected: More varied, potentially less coherent output due to higher temperature/top_p.")
 infer_command_low_focus = [
     sys.executable, "src/scripts/infer_model.py", # Use sys.executable
@@ -58,7 +58,7 @@ print(infer_result_low.stdout)
 if infer_result_low.stderr:
     print("Low Focus Inference Errors:\n", infer_result_low.stderr)
 
-print(f"\n--- Running Inference with high focus_strength (more decisive) ---")
+print("\n--- Running Inference with high focus_strength (more decisive) ---") # F541, E261 fixed
 print("Expected: More repetitive or fixed output due to lower temperature/top_p, reflecting 'conceptual collapse'.")
 infer_command_high_focus = [
     sys.executable, "src/scripts/infer_model.py", # Use sys.executable
@@ -73,8 +73,9 @@ print(infer_result_high.stdout)
 if infer_result_high.stderr:
     print("High Focus Inference Errors:\n", infer_result_high.stderr)
 
-print(f"\n--- Running a placeholder evaluation ---")
-eval_command = [sys.executable, "src/scripts/evaluate_model.py", "--config", config_path, "--model_path", model_file] # Use sys.executable
+print("\n--- Running a placeholder evaluation ---") # F541, E261 fixed
+eval_command = [sys.executable, "src/scripts/evaluate_model.py",
+                "--config", config_path, "--model_path", model_file] # E261, E501 fixed
 eval_result = subprocess.run(eval_command, capture_output=True, text=True, env=subprocess_env) # Pass env
 print(eval_result.stdout)
 if eval_result.stderr:
