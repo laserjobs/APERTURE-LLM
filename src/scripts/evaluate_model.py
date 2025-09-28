@@ -1,14 +1,14 @@
-# src/scripts/evaluate_model.py
 import torch
 import torch.nn.functional as F
 import yaml
 from types import SimpleNamespace
-import sys
-import os
-import warnings
+import warnings # Moved up
 
 # Suppress FutureWarning from torch.load
 warnings.filterwarnings("ignore", category=FutureWarning)
+
+import sys # Moved up
+import os # Moved up
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
@@ -52,8 +52,8 @@ def evaluate(config, model_path, benchmark_suite):
     # Generate dummy multi-modal inputs for evaluation if enabled in config
     raw_image_input_eval = None
     if config.raw_encoder.image.enabled:
-        raw_image_input_eval = torch.randn(1, config.raw_encoder.image.input_shape[0], 
-                                           config.raw_encoder.image.input_shape[1], 
+        raw_image_input_eval = torch.randn(1, config.raw_encoder.image.input_shape[0],
+                                           config.raw_encoder.image.input_shape[1],
                                            config.raw_encoder.image.input_shape[2], device=device)
     
     raw_audio_input_eval = None
@@ -84,9 +84,9 @@ def evaluate(config, model_path, benchmark_suite):
     with torch.no_grad():  # Ensure no gradients are tracked during evaluation's forward pass
         # Get logits for the input_for_loss sequence (now potentially multi-modal conditioned)
         logits = model(
-            input_for_loss, 
-            raw_image_input=raw_image_input_eval, 
-            raw_audio_input=raw_audio_input_eval, 
+            input_for_loss,
+            raw_image_input=raw_image_input_eval,
+            raw_audio_input=raw_audio_input_eval,
             focus_strength=0.7
         )
         
