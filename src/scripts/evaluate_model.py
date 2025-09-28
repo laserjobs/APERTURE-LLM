@@ -2,13 +2,13 @@ import torch
 import torch.nn.functional as F
 import yaml
 from types import SimpleNamespace
-import warnings # Moved up
+import warnings
 
 # Suppress FutureWarning from torch.load
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-import sys # Moved up
-import os # Moved up
+import sys
+import os
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
@@ -19,12 +19,12 @@ from aperture_core.utils import CharTokenizer, set_seed
 def evaluate(config, model_path, benchmark_suite):
     set_seed(config.training.seed)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    
+
     tokenizer = CharTokenizer()
     config.model.vocab_size = tokenizer.vocab_size
 
     model = APERTURE_LLM(config).to(device)
-    
+
     # Error handling for model loading
     try:
         model.load_state_dict(torch.load(model_path, map_location=device, weights_only=False))
@@ -44,18 +44,18 @@ def evaluate(config, model_path, benchmark_suite):
           "(perplexity, coherence, safety), and comparing against baselines.")
 
     dummy_eval_text = "This is a test sentence for evaluation."
-    
+
     # Encode for loss calculation (targets are shifted input)
     encoded_full_input = torch.tensor(tokenizer.encode(dummy_eval_text),
                                       dtype=torch.long, device=device).unsqueeze(0)
-    
+
     # Generate dummy multi-modal inputs for evaluation if enabled in config
     raw_image_input_eval = None
     if config.raw_encoder.image.enabled:
         raw_image_input_eval = torch.randn(1, config.raw_encoder.image.input_shape[0],
                                            config.raw_encoder.image.input_shape[1],
                                            config.raw_encoder.image.input_shape[2], device=device)
-    
+
     raw_audio_input_eval = None
     if config.raw_encoder.audio.enabled:
         raw_audio_input_eval = torch.randn(1, config.raw_encoder.audio.num_samples, device=device)
@@ -89,11 +89,11 @@ def evaluate(config, model_path, benchmark_suite):
             raw_audio_input=raw_audio_input_eval,
             focus_strength=0.7
         )
-        
+
         # Calculate loss (and perplexity) - IMPORTANT: slice logits to match text length
         B, T_fused, C_vocab = logits.shape
         T_text = input_for_loss.size(1)  # Text sequence length for loss calculation
-        
+
         # Ensure T_fused is at least T_text
         if T_fused < T_text:
             print(f"Warning: Fused features length ({T_fused}) is less than expected text input "
@@ -115,7 +115,7 @@ def evaluate(config, model_path, benchmark_suite):
         print(f"Computed Perplexity: {perplexity.item():.4f}")
         print("Metrics (placeholder): Coherence = 0.9, Efficiency = 0.95")
         print("This is dummy output; real metrics would be computed here.")
-    
+
     print("\nEvaluation finished.")
 
 
@@ -142,7 +142,7 @@ if __name__ == "__main__":
     except yaml.YAMLError as e:
         print(f"Error: Invalid YAML format in {args.config}. Details: {e}")
         sys.exit(1)
-    
+
     config = SimpleNamespace(**config_dict)
     config.model = SimpleNamespace(**config.model)
     config.raw_encoder = SimpleNamespace(**config.raw_encoder)
