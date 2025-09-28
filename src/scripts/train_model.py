@@ -10,7 +10,7 @@ import yaml
 from tqdm import tqdm
 
 # Add src/aperture_core to the Python path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+# sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from aperture_core.model import APERTURE_LLM
 from aperture_core.utils import get_batch, CharTokenizer, set_seed
