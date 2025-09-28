@@ -1,5 +1,8 @@
 import sys
 import os
+# Add src/aperture_core to the Python path FIRST to resolve E402
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+
 import warnings
 import argparse
 from types import SimpleNamespace
@@ -8,14 +11,11 @@ import torch
 import torch.nn.functional as F
 import yaml
 
-# Suppress FutureWarning from torch.load
-warnings.filterwarnings("ignore", category=FutureWarning)
-
-# Add src/aperture_core to the Python path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-
 from aperture_core.model import APERTURE_LLM
 from aperture_core.utils import CharTokenizer, set_seed
+
+# Suppress FutureWarning from torch.load
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 
 def evaluate(config, model_path, benchmark_suite):
