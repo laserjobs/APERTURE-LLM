@@ -1,4 +1,3 @@
-# src/aperture_core/output_convergence.py
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -17,7 +16,7 @@ class NonLinearOutputConvergence(nn.Module):
         print(f"DEBUG: Initializing NonLinearOutputConvergence from: {os.path.abspath(__file__)}")
         self.config = config
         self.linear_head = nn.Linear(config.model.embedding_dim, config.model.vocab_size)
-        
+
         # SRF-inspired network to predict sampling parameters from context
         # Input: mean-pooled fused_features (embedding_dim)
         # Output: 2 scaling factors (for temperature and top_p) in [0, 1]
@@ -54,8 +53,9 @@ class NonLinearOutputConvergence(nn.Module):
 
         # Compute context-aware sampling parameters
         # Mean-pool over the sequence length to get a single context vector per batch item
-        context_features = x_context.mean(dim=1)  # (B, embedding_dim)
-        # srf_params = self.srf_net(context_features) # F841: removed as not used in current simplified demo
+        # `context_features` is not used in the simplified demo, but it's part of the concept.
+        # context_features = x_context.mean(dim=1)
+        # srf_params = self.srf_net(context_features)
         # temp_scale, top_p_scale = srf_params[:, 0], srf_params[:, 1]
 
         # Retrieve min/max bounds from config
@@ -76,7 +76,7 @@ class NonLinearOutputConvergence(nn.Module):
         # Low focus_strength -> higher top_p (more exploratory)
         top_p = top_p_min + (top_p_max - top_p_min) * (1.0 - focus_strength_tensor)
         top_p = torch.clamp(top_p, top_p_min, top_p_max)  # (B,) - ensure it's a batch of top_p values
-        
+
         # Apply temperature to logits (needs to be broadcasted per batch item)
         logits = logits / temperature.unsqueeze(-1)  # (B, vocab_size)
 
@@ -85,15 +85,15 @@ class NonLinearOutputConvergence(nn.Module):
         probs = F.softmax(logits, dim=-1)  # (B, vocab_size)
         sorted_probs, sorted_indices = torch.sort(probs, descending=True, dim=-1)
         cumulative_probs = torch.cumsum(sorted_probs, dim=-1)
-        
+
         # Create a boolean mask for tokens to remove: cumulative prob > top_p
         # top_p needs to be unsqueezed for broadcasting
         sorted_indices_to_remove = cumulative_probs > top_p.unsqueeze(-1)
-        
+
         # Shift the indices to the right to keep at least one token (the highest prob token)
         sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
         sorted_indices_to_remove[..., 0] = False  # Ensure the highest probability token is always kept
-        
+
         # Create a mask to apply to the original `logits` tensor
         mask = torch.zeros_like(logits, dtype=torch.bool, device=logits.device)
         mask.scatter_(dim=-1, index=sorted_indices, src=sorted_indices_to_remove)
@@ -103,5 +103,5 @@ class NonLinearOutputConvergence(nn.Module):
         # Sample from the adjusted probabilities
         probs = F.softmax(logits, dim=-1)
         idx_next = torch.multinomial(probs, num_samples=1)  # (B, 1)
-        
+
         return idx_next
