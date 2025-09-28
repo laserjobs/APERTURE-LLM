@@ -93,7 +93,8 @@ class UniversalRawImageEncoder(nn.Module):
 
         self.num_patches = (self.expected_H // self.patch_size) * (self.expected_W // self.patch_size)
         # This correctly projects to config.model.embedding_dim (128)
-        self.patch_embed = nn.Linear(self.expected_C * self.patch_size * self.patch_size, config.model.embedding_dim)
+        self.patch_embed = nn.Linear(self.expected_C * self.patch_size * self.patch_size,
+                                     config.model.embedding_dim) # Broken long line E501
         self.pos_embed = nn.Parameter(torch.randn(1, self.num_patches, config.model.embedding_dim))
         self.dropout = nn.Dropout(0.1)
 
