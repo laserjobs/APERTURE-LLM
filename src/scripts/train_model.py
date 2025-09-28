@@ -1,4 +1,3 @@
-# src/scripts/train_model.py
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -6,8 +5,8 @@ import yaml
 from types import SimpleNamespace
 from tqdm import tqdm
 
-import sys
-import os
+import sys # Moved up
+import os # Moved up
 
 # Add src/aperture_core to the Python path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
@@ -56,7 +55,7 @@ def train(config):
     # Make the number of iterations dynamic based on the larger dummy text
     num_iterations_per_epoch = (len(data) - config.model.block_size) // config.training.batch_size
     if num_iterations_per_epoch == 0:  # Fallback for extremely small datasets
-        num_iterations_per_epoch = 100 
+        num_iterations_per_epoch = 100
     
     for epoch in range(config.training.num_epochs):
         print(f"Epoch {epoch+1}/{config.training.num_epochs}")
@@ -73,7 +72,7 @@ def train(config):
             loss = criterion(logits.view(B*T, C_vocab), yb.view(B*T))
 
             # Backward pass and optimize
-            optimizer.zero_grad(set_to_none=True) 
+            optimizer.zero_grad(set_to_none=True)
             loss.backward()
             optimizer.step()
 
