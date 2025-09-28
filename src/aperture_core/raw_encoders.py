@@ -50,7 +50,7 @@ class UniversalRawTextEncoder(nn.Module):
         if multi_freq_output_dim != final_embedding_dim:
             self.projection = nn.Linear(multi_freq_output_dim, final_embedding_dim)
         else:
-            self.projection = nn.Identity()  # Use Identity if no projection needed (dimensions already match)
+            self.projection = nn.Identity()  # Use Identity if no projection needed
 
         # Update the encoder's advertised output dimension to the final model embedding dimension
         self.output_dim = final_embedding_dim  # This will now be 128
@@ -94,7 +94,7 @@ class UniversalRawImageEncoder(nn.Module):
         self.num_patches = (self.expected_H // self.patch_size) * (self.expected_W // self.patch_size)
         # This correctly projects to config.model.embedding_dim (128)
         self.patch_embed = nn.Linear(self.expected_C * self.patch_size * self.patch_size,
-                                     config.model.embedding_dim) # Broken long line E501
+                                     config.model.embedding_dim)  # Broke line E501
         self.pos_embed = nn.Parameter(torch.randn(1, self.num_patches, config.model.embedding_dim))
         self.dropout = nn.Dropout(0.1)
 
