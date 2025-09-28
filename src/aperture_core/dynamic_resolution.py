@@ -1,4 +1,3 @@
-# src/aperture_core/dynamic_resolution.py
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -19,7 +18,7 @@ class DynamicResolutionAttention(nn.Module):
         self.key = nn.Linear(config.model.embedding_dim, config.model.embedding_dim)
         self.value = nn.Linear(config.model.embedding_dim, config.model.embedding_dim)
         self.proj = nn.Linear(config.model.embedding_dim, config.model.embedding_dim)
-        
+
         self.attn_dropout = nn.Dropout(0.1)
         self.resid_dropout = nn.Dropout(0.1)
 
@@ -46,7 +45,7 @@ class DynamicResolutionAttention(nn.Module):
         attn = attn * (0.5 + 0.5 * resolve_level)  # More flat at low res, more peaked at high res
 
         attn = F.softmax(attn, dim=-1)
-        attn = self.attn_dropout(attn) 
+        attn = self.attn_dropout(attn)
 
         # Weighted sum of values
         y = (attn @ v).transpose(1, 2).contiguous().view(B, T, C)
