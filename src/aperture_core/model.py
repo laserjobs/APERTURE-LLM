@@ -182,13 +182,13 @@ class APERTURE_LLM(nn.Module):
 
     def generate(self, raw_text_input, max_new_tokens, focus_strength=0.0,
                  raw_image_input=None, raw_audio_input=None, targets=None,
-                 adaptation_steps_limit=None):  # Added adaptation_steps_limit
+                 adaptation_steps_limit=None):
         """
         Generates a sequence of tokens autoregressively, with optional online adaptation.
         If `targets` are provided, the model performs per-step gradient updates to its parameters.
         `targets` should be a (B, T_total_targets) tensor of desired continuation tokens.
         """
-        # Store original training state and set to eval mode ( ComputationAllocator uses this)
+        # Store original training state and set to eval mode (ComputationAllocator uses this)
         original_training_state = self.training
         self.eval()
 
