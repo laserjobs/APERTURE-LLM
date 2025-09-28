@@ -135,8 +135,8 @@ class UniversalRawAudioEncoder(nn.Module):
         self.hop_length = self.window_size - self.overlap  # Stride for windowing; simple for now
         
         self.num_segments = 128  # Fixed number of time segments
-        self.expected_samples = self.window_size + \
-            (self.num_segments - 1) * self.hop_length  # Total samples needed for fixed segments
+        self.expected_samples = (self.window_size +
+                                 (self.num_segments - 1) * self.hop_length)  # E501 fix
 
         # This correctly projects to config.model.embedding_dim (128)
         self.proj = nn.Linear(self.window_size // 2 + 1, config.model.embedding_dim)  # FFT output has window_size // 2 + 1 bins
