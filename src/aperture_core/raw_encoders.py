@@ -20,6 +20,7 @@ class MultiFrequencyCharEmbedding(nn.Module):
         embeds = [emb(idx) for emb in self.embeddings]
         return torch.cat(embeds, dim=-1)  # (B, T, total_embed_dim)
 
+
 class UniversalRawTextEncoder(nn.Module):
     """
     Encodes raw character streams directly.
@@ -30,7 +31,7 @@ class UniversalRawTextEncoder(nn.Module):
         
         # Output dimension from MultiFrequencyCharEmbedding (e.g., 96 in your config)
         multi_freq_output_dim = config.raw_encoder.text.char_embed_dim * \
-                                config.raw_encoder.text.multi_freq_components
+            config.raw_encoder.text.multi_freq_components
 
         # The final desired embedding dimension for the model (e.g., 128 from model_config.yaml)
         final_embedding_dim = config.model.embedding_dim
@@ -68,6 +69,7 @@ class UniversalRawTextEncoder(nn.Module):
         pos = torch.arange(0, T, dtype=torch.long, device=raw_char_indices.device)  # (T)
         x = self.dropout(x + self.pos_encoder(pos))  # (B, T, final_embedding_dim=128)
         return x
+
 
 class UniversalRawImageEncoder(nn.Module):
     """
@@ -115,6 +117,7 @@ class UniversalRawImageEncoder(nn.Module):
         x = x + self.pos_embed
         x = self.dropout(x)
         return x  # (B, T_image=num_patches, embedding_dim=128)
+
 
 class UniversalRawAudioEncoder(nn.Module):
     """
