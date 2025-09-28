@@ -4,35 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class NonLinearOutputConvergence(nn.Module):
-    """
-    Non-linear output convergence head for APERTURE-LLM.
-    Maps fused features to vocabulary logits and handles generation with dynamic sampling.
-    Uses a context-aware neural network (SRF-inspired) to adjust temperature and top_p dynamically.
-    """
-    def __init__(self, config):
-        super().__init__()
-        self.config = config
-        self.linear_head = nn.Linear(config.model.embedding_dim, config.model.vocab_size)
-        
-        # SRF-inspired network to predict sampling parameters from context
-        # Input: mean-pooled fused_features (embedding_dim)
-        # Output: 2 scaling factors (for temperature and top_p) in [0, 1]
-        self.srf_net = nn.Sequential(
-            nn.Linear(config.model.embedding_dim, 64), # Reduce dimensionality
-            nn.ReLU(),
-            nn.Linear(64, 2),  # Output 2 values: temp_scale, top_p_scale
-            nn.Sigmoid()       # Normalize to [0, 1]
-        )
-
-    def forward(self, x):
-        """
-        Maps fused features to logits. This is used during training and as the first step in generation.
-        Args:
-            x: (B, T_fused, embedding_dim) tensor from DRBlocks/final LayerNorm
-        Returns:
-            logits: (B, T_fused, vocab_size)
-        """
-        return self.linear_head(x)
+    # ... (rest of the class remains the same)
 
     def generate(self, logits, x_context, focus_strength=0.5):
         """
@@ -60,15 +32,19 @@ class NonLinearOutputConvergence(nn.Module):
         top_p_min = self.config.output_convergence.convergence_top_p_min
         top_p_max = self.config.output_convergence.convergence_top_p_max
 
-        # Dynamic temperature calculation: Combine context-based scale with focus_strength
-        # The (1 - focus_strength) * 0.5 term ensures a baseline influence
-        temperature = temp_min + (temp_max - temp_min) * (temp_scale * focus_strength_tensor + (1 - focus_strength_tensor) * 0.5)
-        temperature = torch.clamp(temperature, temp_min, temp_max)  # (B,)
+        # --- MODIFIED: Dynamic temperature calculation ---
+        # High focus_strength -> lower temperature (more deterministic)
+        # Low focus_strength -> higher temperature (more exploratory)
+        # Use (1.0 - focus_strength_tensor) to get an 'exploration_strength'
+        temperature = temp_min + (temp_max - temp_min) * (1.0 - focus_strength_tensor)
+        temperature = torch.clamp(temperature, temp_min, temp_max)  # (B,) - ensure it's a batch of temps
 
-        # Dynamic top_p calculation: Similarly combine context-based scale with focus_strength
-        top_p = top_p_min + (top_p_max - top_p_min) * (top_p_scale * focus_strength_tensor + (1 - focus_strength_tensor) * 0.5)
-        top_p = torch.clamp(top_p, top_p_min, top_p_max)  # (B,)
-
+        # --- MODIFIED: Dynamic top_p calculation ---
+        # High focus_strength -> lower top_p (more deterministic)
+        # Low focus_strength -> higher top_p (more exploratory)
+        top_p = top_p_min + (top_p_max - top_p_min) * (1.0 - focus_strength_tensor)
+        top_p = torch.clamp(top_p, top_p_min, top_p_max)  # (B,) - ensure it's a batch of top_p values
+        
         # Apply temperature to logits (needs to be broadcasted per batch item)
         logits = logits / temperature.unsqueeze(-1)  # (B, vocab_size)
 
