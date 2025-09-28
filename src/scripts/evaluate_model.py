@@ -1,10 +1,12 @@
 import sys
 import os
 import warnings
+import argparse
+from types import SimpleNamespace
+
 import torch
 import torch.nn.functional as F
 import yaml
-from types import SimpleNamespace
 
 # Suppress FutureWarning from torch.load
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -120,8 +122,6 @@ def evaluate(config, model_path, benchmark_suite):
 
 
 if __name__ == "__main__":
-    import argparse
-
     parser = argparse.ArgumentParser(description="Evaluate APERTURE-LLM.")
     parser.add_argument('--config', type=str, default='src/config/model_config.yaml',
                         help='Path to the model configuration YAML file.')
