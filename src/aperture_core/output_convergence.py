@@ -13,7 +13,8 @@ class NonLinearOutputConvergence(nn.Module):
     def __init__(self, config):
         super().__init__()
         # Debugging print statement:
-        print(f"DEBUG: Initializing NonLinearOutputConvergence from: {os.path.abspath(__file__)}")
+        print(f"DEBUG: Initializing NonLinearOutputConvergence from: "
+              f"{os.path.abspath(__file__)}")  # E501 fix
         self.config = config
         self.linear_head = nn.Linear(config.model.embedding_dim, config.model.vocab_size)
 
@@ -43,7 +44,8 @@ class NonLinearOutputConvergence(nn.Module):
         Dynamically adjusts temperature and top_p based on context and focus_strength.
         Args:
             logits: (B, vocab_size) logits for the *last* token
-            x_context: (B, T_fused, embedding_dim) context features from DRBlocks/final LayerNorm for the current sequence
+            x_context: (B, T_fused, embedding_dim) context features from DRBlocks/final LayerNorm
+                       for the current sequence
             focus_strength: Scalar in [0, 1] to modulate sampling behavior (user control)
         Returns:
             idx_next: (B, 1) sampled token indices
