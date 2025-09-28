@@ -5,6 +5,10 @@ import yaml
 from types import SimpleNamespace
 import sys
 import os
+import warnings # Added
+
+# Suppress FutureWarning from torch.load
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
@@ -22,7 +26,7 @@ def evaluate(config, model_path, benchmark_suite):
     
     # Error handling for model loading
     try:
-        model.load_state_dict(torch.load(model_path, map_location=device))
+        model.load_state_dict(torch.load(model_path, map_location=device, weights_only=False)) # Added weights_only=False
         print(f"Model loaded successfully from {model_path}")
     except FileNotFoundError:
         print(f"Error: Model checkpoint {model_path} not found.")
