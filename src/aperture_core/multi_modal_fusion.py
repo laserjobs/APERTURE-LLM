@@ -31,7 +31,7 @@ class MultiModalFusionModule(nn.Module):
         # Linear projection and LayerNorm after attention
         self.proj = nn.Linear(config.model.embedding_dim, config.model.embedding_dim)
         self.norm = nn.LayerNorm(config.model.embedding_dim)
-        self.dropout_layer = nn.Dropout(0.1) # Added for consistency
+        self.dropout_layer = nn.Dropout(0.1)  # Added for consistency
 
     def forward(self, text_features, image_features, audio_features):
         """
