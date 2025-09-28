@@ -9,11 +9,11 @@ import torch.optim as optim
 import yaml
 from tqdm import tqdm
 
-from aperture_core.model import APERTURE_LLM
-from aperture_core.utils import get_batch, CharTokenizer, set_seed
-
 # Add src/aperture_core to the Python path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+
+from aperture_core.model import APERTURE_LLM
+from aperture_core.utils import get_batch, CharTokenizer, set_seed
 
 def train(config):
     set_seed(config.training.seed)  # Set seed at the start of training
