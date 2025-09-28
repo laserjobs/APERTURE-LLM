@@ -116,8 +116,8 @@ class APERTURE_LLM(nn.Module):
                    (raw_audio_input.device
                     if raw_audio_input is not None and raw_audio_input.numel() > 0 else torch.device('cpu'))))
 
-        text_features = self.raw_text_encoder(raw_text_input) \
-            if raw_text_input is not None and raw_text_input.numel() > 0 else None
+        text_features = (self.raw_text_encoder(raw_text_input)
+                         if raw_text_input is not None and raw_text_input.numel() > 0 else None)
 
         image_features = None
         if self.raw_image_encoder is not None:
