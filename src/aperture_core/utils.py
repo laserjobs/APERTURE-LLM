@@ -4,6 +4,7 @@ import numpy as np
 import random
 import os
 
+
 # Simple char-level tokenizer for demonstration
 class CharTokenizer:
     def __init__(self):
@@ -16,18 +17,20 @@ class CharTokenizer:
     def encode(self, s):
         # Default to space (ASCII 32) if character is not in vocab.
         # Fallback to index 0 if space itself isn't somehow in vocab (though it should be for 0-255).
-        default_char_idx = self.stoi.get(' ', 0) 
+        default_char_idx = self.stoi.get(' ', 0)
         return [self.stoi.get(c, default_char_idx) for c in s]
 
-    def decode(self, l):
-        return "".join([self.itos[i] for i in l])
+    def decode(self, indices):  # Renamed 'l' to 'indices'
+        return "".join([self.itos[i] for i in indices])
+
 
 # Simple dummy data generator for training
 def get_batch(data, block_size, batch_size, device):
     ix = torch.randint(len(data) - block_size, (batch_size,))
-    x = torch.stack([data[i : i + block_size] for i in ix])
-    y = torch.stack([data[i + 1 : i + block_size + 1] for i in ix])
+    x = torch.stack([data[i:i + block_size] for i in ix])
+    y = torch.stack([data[i + 1:i + block_size + 1] for i in ix])
     return x.to(device), y.to(device)
+
 
 def set_seed(seed):
     """Set random seed for reproducibility across torch, numpy, and python random."""
