@@ -1,9 +1,9 @@
 import sys
 import os
 import warnings
-import torch  # Moved up
-import yaml  # Moved up
-from types import SimpleNamespace  # Moved up
+import torch
+import yaml
+from types import SimpleNamespace
 
 # Suppress FutureWarning from torch.load
 warnings.filterwarnings("ignore", category=FutureWarning)
