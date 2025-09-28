@@ -1,10 +1,13 @@
 import sys
 import os
+import warnings # Added warnings to train_model.py
+import argparse
+from types import SimpleNamespace
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import yaml
-from types import SimpleNamespace
 from tqdm import tqdm
 
 # Add src/aperture_core to the Python path
@@ -21,13 +24,13 @@ def train(config):
 
     # 1. Load data and tokenizer
     tokenizer = CharTokenizer()
-    
+
     # Updated dummy text to be longer for better data representation
     dummy_text = ("This is a simple text string for demonstration. The APERTURE LLM aims to be "
                   "the best LLM available. It processes raw digital inputs directly. "
                   "Hello World 123!@#$%^&*()_+-=[]{}|;':\",./<>?~`") * 10000
     data = torch.tensor(tokenizer.encode(dummy_text), dtype=torch.long)
-    
+
     # Update vocab_size in config based on actual tokenizer vocab size
     config.model.vocab_size = tokenizer.vocab_size
     print(f"Tokenizer vocab size: {config.model.vocab_size}")
@@ -55,7 +58,7 @@ def train(config):
     num_iterations_per_epoch = (len(data) - config.model.block_size) // config.training.batch_size
     if num_iterations_per_epoch == 0:  # Fallback for extremely small datasets
         num_iterations_per_epoch = 100
-    
+
     for epoch in range(config.training.num_epochs):
         print(f"Epoch {epoch+1}/{config.training.num_epochs}")
         for iter_step in tqdm(range(num_iterations_per_epoch), desc=f"Epoch {epoch+1}"):
@@ -77,7 +80,7 @@ def train(config):
 
             if iter_step % config.training.eval_interval == 0:
                 print(f"  Loss at iter {iter_step}: {loss.item():.4f}")
-        
+
     print("Training finished.")
     # 4. Save Model
     model_filename = f"aperture_llm_model_epoch_{config.training.num_epochs}.pt"
@@ -86,8 +89,6 @@ def train(config):
 
 
 if __name__ == "__main__":
-    import argparse
-
     parser = argparse.ArgumentParser(description="Train APERTURE-LLM.")
     parser.add_argument('--config', type=str, default='src/config/model_config.yaml',
                         help='Path to the model configuration YAML file.')
