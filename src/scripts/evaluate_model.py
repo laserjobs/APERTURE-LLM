@@ -1,16 +1,17 @@
-import torch
-import torch.nn.functional as F
-import yaml
-from types import SimpleNamespace
+import sys
+import os
 import warnings
 
 # Suppress FutureWarning from torch.load
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-import sys
-import os
-
+# Add src/aperture_core to the Python path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+
+import torch
+import torch.nn.functional as F
+import yaml
+from types import SimpleNamespace
 
 from aperture_core.model import APERTURE_LLM
 from aperture_core.utils import CharTokenizer, set_seed
