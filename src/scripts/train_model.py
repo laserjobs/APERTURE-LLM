@@ -1,12 +1,11 @@
+import sys
+import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import yaml
 from types import SimpleNamespace
 from tqdm import tqdm
-
-import sys # Moved up
-import os # Moved up
 
 # Add src/aperture_core to the Python path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
@@ -24,9 +23,9 @@ def train(config):
     tokenizer = CharTokenizer()
     
     # Updated dummy text to be longer for better data representation
-    dummy_text = "This is a simple text string for demonstration. The APERTURE LLM aims to be " \
-                 "the best LLM available. It processes raw digital inputs directly. " \
-                 "Hello World 123!@#$%^&*()_+-=[]{}|;':\",./<>?~`" * 10000
+    dummy_text = ("This is a simple text string for demonstration. The APERTURE LLM aims to be "
+                  "the best LLM available. It processes raw digital inputs directly. "
+                  "Hello World 123!@#$%^&*()_+-=[]{}|;':\",./<>?~`") * 10000
     data = torch.tensor(tokenizer.encode(dummy_text), dtype=torch.long)
     
     # Update vocab_size in config based on actual tokenizer vocab size
