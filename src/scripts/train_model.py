@@ -24,7 +24,7 @@ def train(config):
     tokenizer = CharTokenizer()
     
     # Updated dummy text to be longer for better data representation
-    dummy_text = "This is a simple text string for demonstration. The APERTURE LLM aims to be the best LLM available. It processes raw digital inputs directly. Hello World 123!@#$%^&*()_+-=[]{}|;':\",./<>?~`" * 500 # Increased from *50
+    dummy_text = "This is a simple text string for demonstration. The APERTURE LLM aims to be the best LLM available. It processes raw digital inputs directly. Hello World 123!@#$%^&*()_+-=[]{}|;':\",./<>?~`" * 10000 # Increased from *500
     data = torch.tensor(tokenizer.encode(dummy_text), dtype=torch.long)
     
     # Update vocab_size in config based on actual tokenizer vocab size
