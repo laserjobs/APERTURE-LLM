@@ -30,12 +30,12 @@ class DynamicResolutionAttention(nn.Module):
         B, T, C = x.size()
 
         # Compute Q, K, V
-        q = self.query(x).view(B, T, self.num_heads, self.head_dim).transpose(1, 2) # (B, nh, T, hs)
-        k = self.key(x).view(B, T, self.num_heads, self.head_dim).transpose(1, 2)   # (B, nh, T, hs)
-        v = self.value(x).view(B, T, self.num_heads, self.head_dim).transpose(1, 2) # (B, nh, T, hs)
+        q = self.query(x).view(B, T, self.num_heads, self.head_dim).transpose(1, 2)  # (B, nh, T, hs)
+        k = self.key(x).view(B, T, self.num_heads, self.head_dim).transpose(1, 2)    # (B, nh, T, hs)
+        v = self.value(x).view(B, T, self.num_heads, self.head_dim).transpose(1, 2)  # (B, nh, T, hs)
 
         # Attention calculation
-        attn = (q @ k.transpose(-2, -1)) * (1.0 / (self.head_dim**0.5)) # (B, nh, T, T)
+        attn = (q @ k.transpose(-2, -1)) * (1.0 / (self.head_dim**0.5))  # (B, nh, T, T)
 
         # Apply dynamic resolution to attention weights/dropout
         current_dropout_rate = (1.0 - resolve_level) * 0.45 + 0.05 
@@ -45,11 +45,11 @@ class DynamicResolutionAttention(nn.Module):
         # Apply a "blurring" or "sharpening" effect to attention logits
         attn = attn * (0.5 + 0.5 * resolve_level) # More flat at low res, more peaked at high res
 
-        attn = F.softmax(attn, dim=-1) # (B, nh, T, T)
+        attn = F.softmax(attn, dim=-1)  # (B, nh, T, T)
         attn = self.attn_dropout(attn) 
 
         # Weighted sum of values
-        y = (attn @ v).transpose(1, 2).contiguous().view(B, T, C) # (B, T, C)
+        y = (attn @ v).transpose(1, 2).contiguous().view(B, T, C)  # (B, T, C)
 
         return self.resid_dropout(self.proj(y))
 
