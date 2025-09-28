@@ -2,6 +2,7 @@
 import torch
 import torch.nn as nn
 
+
 class MultiFrequencyCharEmbedding(nn.Module):
     """
     Multi-frequency embeddings for raw characters.
@@ -50,10 +51,10 @@ class UniversalRawTextEncoder(nn.Module):
         if multi_freq_output_dim != final_embedding_dim:
             self.projection = nn.Linear(multi_freq_output_dim, final_embedding_dim)
         else:
-            self.projection = nn.Identity() # Use Identity if no projection needed (dimensions already match)
+            self.projection = nn.Identity()  # Use Identity if no projection needed (dimensions already match)
 
         # Update the encoder's advertised output dimension to the final model embedding dimension
-        self.output_dim = final_embedding_dim # This will now be 128
+        self.output_dim = final_embedding_dim  # This will now be 128
 
     def forward(self, raw_char_indices):
         # raw_char_indices: (B, T) tensor of character indices
@@ -63,7 +64,7 @@ class UniversalRawTextEncoder(nn.Module):
         x = self.multi_freq_embed(raw_char_indices)  # (B, T, multi_freq_output_dim=96)
         
         # Project to the final embedding dimension if necessary
-        x = self.projection(x) # (B, T, final_embedding_dim=128)
+        x = self.projection(x)  # (B, T, final_embedding_dim=128)
 
         # Add positional embeddings (which also output final_embedding_dim=128)
         pos = torch.arange(0, T, dtype=torch.long, device=raw_char_indices.device)  # (T)
@@ -87,7 +88,7 @@ class UniversalRawImageEncoder(nn.Module):
         self.expected_H = 224
         self.expected_W = 224
         
-        self.patch_size = 16  
+        self.patch_size = 16
         if self.expected_H % self.patch_size != 0 or self.expected_W % self.patch_size != 0:
             raise ValueError("Image dimensions must be divisible by patch_size")
 
@@ -105,7 +106,9 @@ class UniversalRawImageEncoder(nn.Module):
         
         B, C, H, W = raw_pixels.shape
         if C != self.expected_C or H != self.expected_H or W != self.expected_W:
-            raise ValueError(f"UniversalRawImageEncoder expected input shape (B, {self.expected_C}, {self.expected_H}, {self.expected_W}), but got {raw_pixels.shape}. Adjust raw_encoders.py or input data.")
+            raise ValueError(f"UniversalRawImageEncoder expected input shape (B, {self.expected_C}, "
+                             f"{self.expected_H}, {self.expected_W}), but got {raw_pixels.shape}. "
+                             "Adjust raw_encoders.py or input data.")
         
         # Extract patches using unfold:
         # (B, C, H, W) -> (B, C, H/p, p, W/p, p) -> (B, C, H/p, W/p, p, p)
@@ -129,14 +132,15 @@ class UniversalRawAudioEncoder(nn.Module):
         super().__init__()
         self.config = config
         self.window_size = 1024  # Number of samples per FFT window
-        self.overlap = self.window_size // 4 # For overlapping windows, if needed; kept simple for now
-        self.hop_length = self.window_size - self.overlap # Stride for windowing; simple for now
+        self.overlap = self.window_size // 4  # For overlapping windows, if needed; kept simple for now
+        self.hop_length = self.window_size - self.overlap  # Stride for windowing; simple for now
         
         self.num_segments = 128  # Fixed number of time segments
-        self.expected_samples = self.window_size + (self.num_segments - 1) * self.hop_length # Total samples needed for fixed segments
+        self.expected_samples = self.window_size + \
+            (self.num_segments - 1) * self.hop_length  # Total samples needed for fixed segments
 
         # This correctly projects to config.model.embedding_dim (128)
-        self.proj = nn.Linear(self.window_size // 2 + 1, config.model.embedding_dim) # FFT output has window_size // 2 + 1 bins
+        self.proj = nn.Linear(self.window_size // 2 + 1, config.model.embedding_dim)  # FFT output has window_size // 2 + 1 bins
         self.pos_embed = nn.Parameter(torch.randn(1, self.num_segments, config.model.embedding_dim))
         self.dropout = nn.Dropout(0.1)
 
@@ -156,7 +160,7 @@ class UniversalRawAudioEncoder(nn.Module):
         
         # Create overlapping windows manually for the prototype
         # This is a simplified version of what torchaudio.transforms.Spectrogram would do
-        windows = raw_waveform.unfold(dimension=-1, size=self.window_size, step=self.hop_length) # (B, num_segments, window_size)
+        windows = raw_waveform.unfold(dimension=-1, size=self.window_size, step=self.hop_length)  # (B, num_segments, window_size)
         
         # Apply FFT to each window
         # torch.fft.rfft returns complex numbers; .abs() takes magnitude
