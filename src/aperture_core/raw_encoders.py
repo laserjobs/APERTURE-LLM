@@ -1,4 +1,3 @@
-# src/aperture_core/raw_encoders.py
 import torch
 import torch.nn as nn
 
