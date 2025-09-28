@@ -15,16 +15,19 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from aperture_core.model import APERTURE_LLM
 from aperture_core.utils import get_batch, CharTokenizer, set_seed
 
+
 def train(config):
-    set_seed(config.training.seed) # Set seed at the start of training
-    device = 'cuda'  if torch.cuda.is_available() else 'cpu'
+    set_seed(config.training.seed)  # Set seed at the start of training
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(f"Using device: {device}")
 
     # 1. Load data and tokenizer
     tokenizer = CharTokenizer()
     
     # Updated dummy text to be longer for better data representation
-    dummy_text = "This is a simple text string for demonstration. The APERTURE LLM aims to be the best LLM available. It processes raw digital inputs directly. Hello World 123!@#$%^&*()_+-=[]{}|;':\",./<>?~`" * 10000 # Increased from *500
+    dummy_text = "This is a simple text string for demonstration. The APERTURE LLM aims to be " \
+                 "the best LLM available. It processes raw digital inputs directly. " \
+                 "Hello World 123!@#$%^&*()_+-=[]{}|;':\",./<>?~`" * 10000
     data = torch.tensor(tokenizer.encode(dummy_text), dtype=torch.long)
     
     # Update vocab_size in config based on actual tokenizer vocab size
@@ -36,22 +39,23 @@ def train(config):
     model = APERTURE_LLM(config).to(device)
     optimizer = optim.AdamW(model.parameters(), lr=config.training.learning_rate)
     criterion = nn.CrossEntropyLoss()
-    print(f"APERTURE-LLM Model initialized with {sum(p.numel() for p in model.parameters())/1e6:.2f}M parameters")
+    print(f"APERTURE-LLM Model initialized with "
+          f"{sum(p.numel() for p in model.parameters())/1e6:.2f}M parameters")
 
     # Optional: Debug Tensor Shapes - START
     # For text-only training, we only provide `xb` to the model.
     xb_debug, yb_debug = get_batch(data, config.model.block_size, config.training.batch_size, device)
-    print(f"DEBUG: Input batch shape: {xb_debug.shape}, Target batch shape: {yb_debug.shape}") # Expected: (batch_size, block_size) e.g., (8, 256)
+    print(f"DEBUG: Input batch shape: {xb_debug.shape}, Target batch shape: {yb_debug.shape}")
     with torch.no_grad():
-        logits_debug = model(xb_debug, focus_strength=0.5) # Text-only
-    print(f"DEBUG: Logits shape: {logits_debug.shape}") # Expected: (batch_size, block_size, vocab_size) e.g., (8, 256, 256)
+        logits_debug = model(xb_debug, focus_strength=0.5)  # Text-only
+    print(f"DEBUG: Logits shape: {logits_debug.shape}")
     # Optional: Debug Tensor Shapes - END
 
     # 3. Training Loop
     model.train()
     # Make the number of iterations dynamic based on the larger dummy text
     num_iterations_per_epoch = (len(data) - config.model.block_size) // config.training.batch_size
-    if num_iterations_per_epoch == 0: # Fallback for extremely small datasets
+    if num_iterations_per_epoch == 0:  # Fallback for extremely small datasets
         num_iterations_per_epoch = 100 
     
     for epoch in range(config.training.num_epochs):
@@ -82,6 +86,7 @@ def train(config):
     torch.save(model.state_dict(), model_filename)
     print(f"Model saved to {model_filename}")
 
+
 if __name__ == "__main__":
     import argparse
 
@@ -108,8 +113,12 @@ if __name__ == "__main__":
     config.raw_encoder.text = SimpleNamespace(**config.raw_encoder.text)
     # Ensure image/audio are SimpleNamespace if they exist and are enabled in config.
     # Note: yaml.safe_load might omit commented-out sections entirely, so hasattr is key.
-    config.raw_encoder.image = SimpleNamespace(**config.raw_encoder.image) if hasattr(config.raw_encoder, 'image') and config.raw_encoder.image else None
-    config.raw_encoder.audio = SimpleNamespace(**config.raw_encoder.audio) if hasattr(config.raw_encoder, 'audio') and config.raw_encoder.audio else None
+    config.raw_encoder.image = (SimpleNamespace(**config.raw_encoder.image)
+                                if hasattr(config.raw_encoder, 'image') and config.raw_encoder.image
+                                else None)
+    config.raw_encoder.audio = (SimpleNamespace(**config.raw_encoder.audio)
+                                if hasattr(config.raw_encoder, 'audio') and config.raw_encoder.audio
+                                else None)
 
     config.dynamic_resolution = SimpleNamespace(**config.dynamic_resolution)
     config.output_convergence = SimpleNamespace(**config.output_convergence)
