@@ -1,15 +1,15 @@
-import sys
-import os
-# Add src/aperture_core to the Python path FIRST to resolve E402
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-
-import warnings
 import argparse
+import os
+import sys
+import warnings
 from types import SimpleNamespace
 
 import torch
 import torch.nn.functional as F
 import yaml
+
+# Add src/aperture_core to the Python path
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from aperture_core.model import APERTURE_LLM
 from aperture_core.utils import CharTokenizer, set_seed
@@ -132,7 +132,8 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # Error handling for config loading
+    # Error handling for config loading is handled inside _load_config_and_model now
+    config_dict = {}
     try:
         with open(args.config, 'r') as f:
             config_dict = yaml.safe_load(f)
