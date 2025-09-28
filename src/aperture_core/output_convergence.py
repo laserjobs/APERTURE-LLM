@@ -51,9 +51,7 @@ class NonLinearOutputConvergence(nn.Module):
         # Ensure focus_strength is a tensor for device compatibility and operations
         focus_strength_tensor = torch.tensor(focus_strength, device=logits.device, dtype=logits.dtype)
 
-        # Compute context-aware sampling parameters
-        # Mean-pool over the sequence length to get a single context vector per batch item
-        # `context_features` is not used in the simplified demo, but it's part of the concept.
+        # Compute context-aware sampling parameters (srf_net is currently unused in this simplified demo)
         # context_features = x_context.mean(dim=1)
         # srf_params = self.srf_net(context_features)
         # temp_scale, top_p_scale = srf_params[:, 0], srf_params[:, 1]
