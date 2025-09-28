@@ -3,19 +3,23 @@ import os
 import sys
 
 # Ensure we are in the root directory
+# This script is in examples/, so '..' takes it to the project root 'APERTURE-LLM/'
 project_root = os.path.dirname(os.path.abspath(__file__)) + '/../'
 os.chdir(project_root)
 
 # --- Configuration ---
 config_path = "src/config/model_config.yaml"
-model_file = "aperture_llm_model_epoch_1.pt"  # Updated to reflect num_epochs: 1 from model_config.yaml
+# Corrected: model_file name should match the num_epochs in model_config.yaml (which is 1)
+model_file = "aperture_llm_model_epoch_1.pt"
 seed_value = 42  # Consistent seed for reproducibility
 
 # --- Prepare PYTHONPATH for subprocesses ---
-# Add the project root to the PYTHONPATH. This makes 'src' discoverable as a top-level package.
+# Add the 'src' directory (within the project root) to the PYTHONPATH.
+# This makes 'src/aperture_core' discoverable as 'aperture_core' for imports like
+# 'from aperture_core.model import APERTURE_LLM'.
 current_python_path = os.environ.get('PYTHONPATH', '')
-# Ensure project_root is at the beginning of PYTHONPATH
-new_python_path = os.path.abspath(project_root) + os.pathsep + current_python_path
+# The crucial change: add project_root/src to PYTHONPATH
+new_python_path = os.path.join(os.path.abspath(project_root), 'src') + os.pathsep + current_python_path
 subprocess_env = os.environ.copy()
 subprocess_env['PYTHONPATH'] = new_python_path
 
