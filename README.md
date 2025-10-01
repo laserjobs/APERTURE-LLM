@@ -23,6 +23,7 @@
     *   [Training](#training)
     *   [Inference](#inference)
     *   [Evaluation](#evaluation)
+    *   [Interoperability with Tokenized AIs (Aperture-Token Bridge)](#interoperability-with-tokenized-ais-aperture-token-bridge)
 7.  [**Experiments & Benchmarks**](#7-experiments--benchmarks)
 8.  [**Contributing**](#8-contributing)
 9.  [**License**](#9-license)
@@ -68,11 +69,11 @@ The APERTURE-LLM is built on a foundation of rigorous ethical principles. Its de
 
 The APERTURE-LLM leverages a uniquely tailored, modular architecture:
 
-*   **Universal Raw Digital Encoding Operators (`raw_encoders.py`):** Modality-specific neural networks (e.g., convolutional for pixels, recurrent/transformative for characters/waveforms) explicitly designed to learn semantic aliasing directly from raw digital inputs.
-*   **Multi-Modal Fusion Module (`multi_modal_fusion.py`):** A sophisticated attention-based architecture that seamlessly integrates aliased feature streams from different modalities into a unified latent space.
-*   **Dynamic Resolution Modules (`dynamic_resolution.py`):** Novel attention and routing mechanisms that dynamically adjust computational resources (e.g., number of attention heads, layer depth, computation paths) based on learned cognitive demand.
+*   **Universal Raw Digital Encoding Operators (`src/aperture_core/raw_encoders.py`):** Modality-specific neural networks (e.g., convolutional for pixels, recurrent/transformative for characters/waveforms) explicitly designed to learn semantic aliasing directly from raw digital inputs.
+*   **Multi-Modal Fusion Module (`src/aperture_core/multi_modal_fusion.py`):** A sophisticated attention-based architecture that seamlessly integrates aliased feature streams from different modalities into a unified latent space.
+*   **Dynamic Resolution Modules (`src/aperture_core/dynamic_resolution.py`):** Novel attention and routing mechanisms that dynamically adjust computational resources (e.g., number of attention heads, layer depth, computation paths) based on learned cognitive demand.
 *   **Iterative Processing Blocks:** Core Transformer-like blocks that operate on the fused aliased features, refining them over multiple "event-stream" iterations, incorporating controlled stochasticity for creative variance.
-*   **Non-linear Output Convergence Decoder (`output_convergence.py`):** A multi-branching decoder featuring a "collapse" activation function that rapidly prunes less probable branches to converge on a definitive output, precisely controlled by the "focus strength" parameter.
+*   **Non-linear Output Convergence Decoder (`src/aperture_core/output_convergence.py`):** A multi-branching decoder featuring a "collapse" activation function that rapidly prunes less probable branches to converge on a definitive output, precisely controlled by the "focus strength" parameter.
 *   **Multi-Frequency Embedding Principles:** The encoding processes within the raw encoders and subsequent layers implicitly or explicitly handle information across different "frequency" scales, enabling adaptive filtering and perception of multi-scale details.
 
 ## 4. Why APERTURE-LLM is the Best LLM Available
@@ -125,16 +126,17 @@ To generate output from raw digital input using a trained model:
 ```bash
 # Example: Raw Text Input
 python scripts/infer_model.py \
-    --model_path path/to/your/model.pt \
+    --model_path aperture_llm_model_epoch_1.pt \
     --raw_text_input "The ancient, dilapidated mansion, shrouded in thick ivy and eerie whispers, silently watched the moonlit street, its decaying grandeur a forgotten sentinel of time." \
     --focus_strength 0.8 \
     --output_modality text
 
 # Example: Raw Image Input (placeholder for actual image file input)
+# Note: For this prototype, 'dummy' image input uses random data.
 python scripts/infer_model.py \
-    --model_path path/to/your/model.pt \
-    --raw_image_path path/to/your/image.png \
-    --prompt "Describe the main objects and their colors." \
+    --model_path aperture_llm_model_epoch_1.pt \
+    --raw_image_input dummy \
+    --raw_text_input "Describe the main objects and their colors in this image." \
     --focus_strength 0.9 \
     --output_modality text
 ```
@@ -147,9 +149,31 @@ To evaluate a trained model on comprehensive multi-modal benchmark datasets:
 
 ```bash
 python scripts/evaluate_model.py \
-    --model_path path/to/your/model.pt \
+    --model_path aperture_llm_model_epoch_1.pt \
     --benchmark_suite M3E # Multi-Modal, Multi-Resolution Evaluation Suite (custom benchmark)
 ```
+
+### Interoperability with Tokenized AIs (Aperture-Token Bridge)
+
+The APERTURE-LLM's core strength is its abolition of tokenization. However, for interoperability with existing tokenized AI systems, we provide an "Aperture-Token Bridge" composed of adapter modules (`src/aperture_core/token_bridge.py`):
+
+*   **`TokenToRawCharAdapter`**: Converts sequences of token IDs (from a traditional tokenizer) into raw character streams suitable for APERTURE-LLM's `UniversalRawTextEncoder`.
+*   **`RawCharToTokenAdapter`**: Converts APERTURE-LLM's raw character outputs into token IDs suitable for consumption by a traditional tokenized AI.
+
+This bridge allows other AI systems to leverage APERTURE-LLM's unique capabilities (like OOV-free generation and multi-modal understanding) and integrate them into their token-based workflows.
+
+To see the Aperture-Token Bridge in action, run the demonstration script:
+
+```bash
+# This script requires a trained model (e.g., 'aperture_llm_model_epoch_1.pt')
+# generated by running `python scripts/train_model.py` first.
+python examples/example_bridge.py
+```
+
+This script showcases:
+1.  How tokenized output can be fed into APERTURE-LLM.
+2.  How APERTURE-LLM's raw character generation can be converted back into tokens.
+3.  How multi-modal understanding from APERTURE-LLM can be translated into tokenized text output.
 
 ## 7. Experiments & Benchmarks
 
@@ -164,7 +188,7 @@ The APERTURE-LLM will be rigorously evaluated against a suite of novel benchmark
 
 ## 8. Contributing
 
-The APERTURE-LLM is a truly ambitious and open-ended project. We invite the brightest minds in AI, machine learning, and computational science to contribute to this groundbreaking endeavor. If you are passionate about building the next generation of intelligent systems, please refer to our (future) `CONTRIBUTING.md` for detailed guidelines.
+The APERTURE-LLM is a truly ambitious and open-ended project. We invite the brightest minds in AI, machine learning, and computational science to contribute to this groundbreaking endeavor. If you are passionate about building the next generation of intelligent systems, please refer to our `CONTRIBUTING.md` for detailed guidelines.
 
 ## 9. License
 
