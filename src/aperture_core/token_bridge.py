@@ -2,7 +2,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-# Removed 'warnings' as it was imported but unused (F401)
+# No 'warnings' import needed as it was unused (F401)
 
 
 class DummyExternalTokenizer:
@@ -10,6 +10,7 @@ class DummyExternalTokenizer:
     A placeholder for an external, traditional token-based tokenizer (e.g., BPE, WordPiece).
     It operates on a pre-defined vocabulary of 'words' or 'subwords'.
     """
+
     def __init__(self, vocab_list=None):
         if vocab_list is None:
             # A very simple, fixed vocabulary for demonstration
@@ -20,7 +21,7 @@ class DummyExternalTokenizer:
                           "can", "do", "said", "say", "went", "go", "come", "see", "make", "get",
                           "up", "down", "out", "in", "on", "off", "about", "into", "over", "under",
                           "then", "now", "when", "where", "why", "how", "what", "who", "whom",
-                          ".", ",", "!", "?", "'", "-", " "] # Corrected SyntaxError
+                          ".", ",", "!", "?", "'", "-", " "]
         else:
             self.vocab = vocab_list
 
@@ -36,13 +37,13 @@ class DummyExternalTokenizer:
         """
         if not isinstance(text, str):
             raise TypeError(f"Expected text to be string, but got {type(text)}")
-        
+
         # Simple splitting by spaces and common punctuation.
         # This is not robust like BPE but serves the purpose of mapping string to token IDs.
         processed_text = text.replace('.', ' . ').replace(',', ' , ').replace('!', ' ! ') \
-                             .replace('?', ' ? ').replace("'", " ' ").replace('-', ' - ') # E501 fixed
+                             .replace('?', ' ? ').replace("'", " ' ").replace('-', ' - ')
         words_and_punctuation = processed_text.lower().split()
-        
+
         token_ids = []
         for item in words_and_punctuation:
             if item in self.stoi:
@@ -57,7 +58,7 @@ class DummyExternalTokenizer:
         """
         if not isinstance(token_ids, (list, torch.Tensor)):
             raise TypeError(f"Expected token_ids to be list or Tensor, but got {type(token_ids)}")
-        
+
         if isinstance(token_ids, torch.Tensor):
             token_ids = token_ids.tolist()
 
@@ -66,8 +67,8 @@ class DummyExternalTokenizer:
             token_str = self.itos.get(i, self.itos[self.unk_token_id])
             if token_str == " ":  # Handle spaces explicitly
                 decoded_parts.append(" ")
-            # E261 fixed: at least two spaces before inline comment
-            elif token_str in [".", ",", "!", "?", "'", "-"]:  # Handle punctuation with no preceding space
+            # Handle punctuation with no preceding space
+            elif token_str in [".", ",", "!", "?", "'", "-"]:
                 if decoded_parts and decoded_parts[-1] == " ":  # Remove space if punctuation follows
                     decoded_parts.pop()
                 decoded_parts.append(token_str)
@@ -77,7 +78,7 @@ class DummyExternalTokenizer:
                 if decoded_parts and decoded_parts[-1] not in [" ", ".", ",", "!", "?", "'", "-"]:
                     decoded_parts.append(" ")
                 decoded_parts.append(token_str)
-        
+
         return "".join(decoded_parts).strip()
 
 
@@ -88,11 +89,12 @@ class TokenToRawCharAdapter(nn.Module):
 
     This effectively 'detokenizes' the input into characters.
     """
+
     def __init__(self, external_tokenizer, aperture_char_tokenizer):
         super().__init__()
         self.external_tokenizer = external_tokenizer
         self.aperture_char_tokenizer = aperture_char_tokenizer
-        
+
         # Ensure that the external tokenizer has an .decode method
         if not hasattr(self.external_tokenizer, 'decode'):
             raise ValueError("Provided external_tokenizer must have a 'decode' method.")
@@ -110,7 +112,7 @@ class TokenToRawCharAdapter(nn.Module):
                           suitable for APERTURE-LLM.
         """
         if token_ids.ndim == 1:
-            token_ids = token_ids.unsqueeze(0) # Add batch dimension if missing
+            token_ids = token_ids.unsqueeze(0)  # Add batch dimension if missing
 
         batch_raw_char_indices = []
         for i in range(token_ids.size(0)):
@@ -121,7 +123,7 @@ class TokenToRawCharAdapter(nn.Module):
             # 2. Encode the raw string into APERTURE-LLM's character indices
             char_indices = self.aperture_char_tokenizer.encode(decoded_text)
             batch_raw_char_indices.append(torch.tensor(char_indices, dtype=torch.long,
-                                                       device=token_ids.device)) # E501 fixed
+                                                       device=token_ids.device))
 
         # Pad sequences to the maximum length in the batch
         max_len = max(len(seq) for seq in batch_raw_char_indices)
@@ -129,7 +131,7 @@ class TokenToRawCharAdapter(nn.Module):
         padded_batch = torch.stack([
             F.pad(seq, (0, max_len - len(seq)), 'constant', 0) for seq in batch_raw_char_indices
         ])
-        
+
         return padded_batch
 
 
@@ -140,11 +142,12 @@ class RawCharToTokenAdapter(nn.Module):
 
     This effectively 'tokenizes' APERTURE-LLM's raw output.
     """
+
     def __init__(self, external_tokenizer, aperture_char_tokenizer):
         super().__init__()
         self.external_tokenizer = external_tokenizer
         self.aperture_char_tokenizer = aperture_char_tokenizer
-        
+
         # Ensure that the external tokenizer has an .encode method
         if not hasattr(self.external_tokenizer, 'encode'):
             raise ValueError("Provided external_tokenizer must have an 'encode' method.")
@@ -162,7 +165,7 @@ class RawCharToTokenAdapter(nn.Module):
                           suitable for the external tokenized AI.
         """
         if char_indices.ndim == 1:
-            char_indices = char_indices.unsqueeze(0) # Add batch dimension if missing
+            char_indices = char_indices.unsqueeze(0)  # Add batch dimension if missing
 
         batch_token_ids = []
         for i in range(char_indices.size(0)):
@@ -172,14 +175,14 @@ class RawCharToTokenAdapter(nn.Module):
             # 2. Encode the raw string into the external tokenizer's token IDs
             token_ids = self.external_tokenizer.encode(decoded_text)
             batch_token_ids.append(torch.tensor(token_ids, dtype=torch.long,
-                                                device=char_indices.device)) # E501 fixed
+                                                device=char_indices.device))
 
         # Pad sequences to the maximum length in the batch
         max_len = max(len(seq) for seq in batch_token_ids)
         # Assuming padding with the external tokenizer's UNK token ID
         padded_batch = torch.stack([
             F.pad(seq, (0, max_len - len(seq)), 'constant', self.external_tokenizer.unk_token_id)
-            for seq in batch_token_ids # E501 fixed
+            for seq in batch_token_ids
         ])
-        
+
         return padded_batch
