@@ -2,18 +2,15 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from src.aperture_core.raw_encoders import UniversalRawTextEncoder, UniversalRawImageEncoder, UniversalRawAudioEncoder
-from src.aperture_core.multi_modal_fusion import MultiModalFusionModule
-from src.aperture_core.dynamic_resolution import DRBlock
-from src.aperture_core.output_convergence import NonLinearOutputConvergence
+# CORRECTED: Use relative imports for modules within the same 'aperture_core' package
+from .raw_encoders import UniversalRawTextEncoder, UniversalRawImageEncoder, UniversalRawAudioEncoder
+from .multi_modal_fusion import MultiModalFusionModule
+from .dynamic_resolution import DRBlock
+from .output_convergence import NonLinearOutputConvergence
 
 
 class ComputationAllocator(nn.Module):
-    """
-    Predicts per-layer activation weights based on fused input features.
-    Inspired by SRF's dynamic Planck Filter/Avalanche Collapse,
-    it allows for adaptive computation paths during inference.
-    """
+    # ... (rest of the class code as before) ...
     def __init__(self, config):
         super().__init__()
         self.config = config
@@ -33,13 +30,7 @@ class ComputationAllocator(nn.Module):
 
 
 class MetaLearningModule(nn.Module):
-    """
-    Provides a context-aware scalar learning rate multiplier for online adaptation.
-    Its own parameters (`base_online_lr`, `lr_multiplier_net`'s weights) are updated
-    via standard backprop during main training if involved in the loss computation,
-    or would be updated in an outer meta-training loop for true meta-learning.
-    For this prototype, it enables adaptive online updates of the main model parameters.
-    """
+    # ... (rest of the class code as before) ...
     def __init__(self, config):
         super().__init__()
         self.config = config
@@ -49,23 +40,16 @@ class MetaLearningModule(nn.Module):
             nn.Linear(32, 1),
             nn.Sigmoid()  # Output a multiplier in [0, 1]
         )
-        # A learnable base LR for online updates of the main model.
-        # This parameter is part of the MetaLearningModule, so it will be included in self.parameters().
         self.base_online_lr = nn.Parameter(torch.tensor(0.001))
 
     def get_adaptive_online_lr(self, feedback_features):
-        # feedback_features: (B, T_fused, embedding_dim) from current context
         context_vector = feedback_features.mean(dim=1)  # (B, embedding_dim)
         lr_multiplier = self.lr_multiplier_net(context_vector)  # (B, 1)
-        # The adaptive online LR for each item in the batch
         return self.base_online_lr * lr_multiplier  # (B, 1)
 
 
 class APERTURE_LLM(nn.Module):
-    """
-    The APERTURE-LLM: An Adaptive Perception & Resolution LLM - The Ultimate Generative Model.
-    Abolishes tokenization by processing raw digital inputs.
-    """
+    # ... (rest of the class code as before) ...
     def __init__(self, config):
         super().__init__()
         self.config = config
@@ -95,13 +79,11 @@ class APERTURE_LLM(nn.Module):
         # 6. Self-Improving Learning Algorithm (Online Adaptation)
         self.meta_learner = MetaLearningModule(config)
 
-        # Calculate and print model parameters AFTER all modules are added
         print(f"APERTURE-LLM Model initialized with "
               f"{sum(p.numel() for p in self.parameters())/1e6:.2f}M parameters")
 
     def _encode_and_fuse(self, raw_text_input, raw_image_input=None, raw_audio_input=None):
-        """Helper to encode raw inputs and perform multi-modal fusion."""
-        # Determine batch size from available input (raw_text_input is assumed primary for this prototype)
+        # ... (rest of the method code as before) ...
         batch_size_ref = (raw_text_input.size(0)
                           if raw_text_input is not None and raw_text_input.numel() > 0 else
                           (raw_image_input.size(0)
@@ -134,14 +116,11 @@ class APERTURE_LLM(nn.Module):
             )
 
         fused_features = self.multi_modal_fusion(text_features, image_features, audio_features)
-        return fused_features  # (B, T_fused, embedding_dim)
+        return fused_features
 
     def _process_blocks_with_allocation(self, encoded_fused_features, focus_strength=0.0):
-        """
-        Helper to process features through DRBlocks, applying dynamic computation allocation
-        during inference.
-        """
-        fused_features = encoded_fused_features  # Start with fused features
+        # ... (rest of the method code as before) ...
+        fused_features = encoded_fused_features
 
         resolve_level = (focus_strength *
                          (self.config.dynamic_resolution.max_res_scale -
@@ -151,42 +130,32 @@ class APERTURE_LLM(nn.Module):
                                     self.config.dynamic_resolution.min_res_scale,
                                     self.config.dynamic_resolution.max_res_scale).item()
 
-        if self.training:  # During training, always apply all blocks for gradient flow
+        if self.training:
             for block in self.dr_blocks:
                 fused_features = fused_features + block(fused_features, resolve_level=resolve_level)
-        else:  # During inference/evaluation, apply blocks based on ComputationAllocator
-            layer_weights = self.comp_allocator(fused_features)  # (B, num_layers)
+        else:
+            layer_weights = self.comp_allocator(fused_features)
             for i, block in enumerate(self.dr_blocks):
-                # Create a binary mask for each block in the batch.
-                # Threshold of 0.5 for Sigmoid output; if weight > 0.5, block is "active".
-                mask = (layer_weights[:, i:i+1] > 0.5).float()  # (B, 1)
+                mask = (layer_weights[:, i:i+1] > 0.5).float()
 
                 block_output = block(fused_features, resolve_level=resolve_level)
 
-                # Selectively add block output based on mask.
-                fused_features = fused_features + block_output * mask.unsqueeze(1)  # Apply block if mask is 1
+                fused_features = fused_features + block_output * mask.unsqueeze(1)
 
-        fused_features = self.ln_f(fused_features)  # Final LayerNorm
+        fused_features = self.ln_f(fused_features)
         return fused_features
 
     def forward(self, raw_text_input, raw_image_input=None, raw_audio_input=None, focus_strength=0.0):
-        """
-        Main forward pass for the model, outputs logits.
-        """
+        # ... (rest of the method code as before) ...
         encoded_fused_features = self._encode_and_fuse(raw_text_input, raw_image_input, raw_audio_input)
         processed_fused_features = self._process_blocks_with_allocation(encoded_fused_features, focus_strength)
-        logits = self.output_convergence(processed_fused_features)  # (B, T_fused, vocab_size)
+        logits = self.output_convergence(processed_fused_features)
         return logits
 
     def generate(self, raw_text_input, max_new_tokens, focus_strength=0.0,
                  raw_image_input=None, raw_audio_input=None, targets=None,
                  adaptation_steps_limit=None):
-        """
-        Generates a sequence of tokens autoregressively, with optional online adaptation.
-        If `targets` are provided, the model performs per-step gradient updates to its parameters.
-        `targets` should be a (B, T_total_targets) tensor of desired continuation tokens.
-        """
-        # Store original training state and set to eval mode (ComputationAllocator uses this)
+        # ... (rest of the method code as before) ...
         original_training_state = self.training
         self.eval()
 
@@ -194,14 +163,12 @@ class APERTURE_LLM(nn.Module):
         initial_image_input = raw_image_input
         initial_audio_input = raw_audio_input
 
-        targets_sequence = targets  # (B, T_total_targets)
+        targets_sequence = targets
 
         for step in range(max_new_tokens):
-            # 1. Prepare current input for the model
             idx_cond = generated_sequence if generated_sequence.size(1) \
                 <= self.config.model.block_size else generated_sequence[:, -self.config.model.block_size:]
 
-            # 2. Forward pass for current step (gradients conditionally enabled)
             with torch.enable_grad() if targets_sequence is not None else torch.no_grad():
                 encoded_fused_features_for_step = self._encode_and_fuse(
                     raw_text_input=idx_cond,
@@ -212,58 +179,44 @@ class APERTURE_LLM(nn.Module):
                     encoded_fused_features_for_step,
                     focus_strength=focus_strength
                 )
-                logits = self.output_convergence(current_fused_features)  # (B, T_fused, vocab_size)
+                logits = self.output_convergence(current_fused_features)
 
-            logits_for_sampling = logits[:, -1, :]  # (B, vocab_size)
+            logits_for_sampling = logits[:, -1, :]
 
-            # 3. Sample the next token
             idx_next = self.output_convergence.generate(
                 logits_for_sampling,
                 x_context=current_fused_features,
                 focus_strength=focus_strength
-            )  # (B, 1)
+            )
 
-            # --- 4. Online Adaptation Step (if targets are provided and within limits) ---
             if targets_sequence is not None and \
                (adaptation_steps_limit is None or step < adaptation_steps_limit):
 
-                # Determine the target token for this specific generation step
                 current_target_idx_in_sequence = generated_sequence.size(1)
 
-                # Ensure target_token_idx is within bounds of targets_sequence
                 if current_target_idx_in_sequence < targets_sequence.size(1):
-                    target_for_this_step = targets_sequence[:, current_target_idx_in_sequence]  # (B,)
+                    target_for_this_step = targets_sequence[:, current_target_idx_in_sequence]
 
-                    # Compute adaptation loss
                     adaptation_loss = F.cross_entropy(logits_for_sampling, target_for_this_step)
 
-                    # Compute gradients for adaptation
                     adaptation_loss.backward()
 
-                    # --- MITIGATION: Apply gradient clipping ---
                     torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1.0)
 
-                    # Get adaptive online learning rate from MetaLearningModule
                     online_lr_per_batch = self.meta_learner.get_adaptive_online_lr(current_fused_features)
-                    adaptive_lr = online_lr_per_batch.mean().item()  # Scalar LR for entire batch for all params
+                    adaptive_lr = online_lr_per_batch.mean().item()
 
                     for param in self.parameters():
                         if param.grad is not None and param.requires_grad:
                             param.data -= adaptive_lr * param.grad
 
-                    # Clear gradients for the next step before next forward pass
                     self.zero_grad()
                 else:
-                    # Ran out of targets sequence for adaptation
                     if step == 0:
                         print("Warning: Not enough targets provided for full online adaptation."
                               " Stopping online updates.")
-                    targets_sequence = None  # Stop further adaptation
-            # --- End Online Adaptation Step ---
-
-            # 5. Append sampled token to the running sequence
+                    targets_sequence = None
             generated_sequence = torch.cat((generated_sequence, idx_next), dim=1)
 
-        # Restore original training state
         self.train(original_training_state)
         return generated_sequence
