@@ -28,10 +28,14 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      # FIX: Add PYTHONPATH to make 'src' discoverable as a package root
+      # FIX: Correct PYTHONPATH for package discovery
+      # This sets the repository root as a path where Python looks for packages.
+      # So, 'src' itself becomes a package that can be imported (e.g., 'import src.aperture_core').
+      # Or, if imports are 'from aperture_core.model', Python finds 'aperture_core' inside 'src'.
+      # For consistency with 'from src.aperture_core' style, the repo root is correct.
       - name: Set PYTHONPATH for package discovery
         run: |
-          echo "PYTHONPATH=$GITHUB_WORKSPACE/src" >> $GITHUB_ENV # Set PYTHONPATH to include src directory
+          echo "PYTHONPATH=$GITHUB_WORKSPACE" >> $GITHUB_ENV 
 
       - name: Cache pip dependencies
         uses: actions/cache@v3
@@ -58,9 +62,7 @@ jobs:
       # --- START CI Steps for comprehensive testing ---
       - name: Run APERTURE-LLM Training (produces model checkpoint)
         run: |
-          # Use sys.executable to ensure correct Python environment
           python src/scripts/train_model.py --config src/config/model_config.yaml
-          # Verify model file creation
           ls -l aperture_llm_model_epoch_1.pt
 
       - name: Run APERTURE-LLM Inference (basic check)
