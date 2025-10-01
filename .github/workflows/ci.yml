@@ -1,4 +1,3 @@
-# .github/workflows/ci.yml
 name: Python CI
 
 on:
@@ -29,6 +28,11 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      # FIX: Add PYTHONPATH to make 'src' discoverable as a package root
+      - name: Set PYTHONPATH for package discovery
+        run: |
+          echo "PYTHONPATH=$GITHUB_WORKSPACE/src" >> $GITHUB_ENV # Set PYTHONPATH to include src directory
+
       - name: Cache pip dependencies
         uses: actions/cache@v3
         with:
@@ -48,9 +52,10 @@ jobs:
           # Stop the build if there are Python syntax errors or undefined names
           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
           # Exit-zero on success, provide a failure if errors were found
-          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=120 --statistics
+          # Run flake8 on src and examples directories
+          flake8 src examples --count --exit-zero --max-complexity=10 --max-line-length=120 --statistics
 
-      # --- START New/Modified CI Steps for comprehensive testing ---
+      # --- START CI Steps for comprehensive testing ---
       - name: Run APERTURE-LLM Training (produces model checkpoint)
         run: |
           # Use sys.executable to ensure correct Python environment
@@ -75,4 +80,4 @@ jobs:
       - name: Run Aperture-Token Bridge Demonstration
         run: |
           python examples/example_bridge.py
-      # --- END New/Modified CI Steps ---
+      # --- END CI Steps ---
