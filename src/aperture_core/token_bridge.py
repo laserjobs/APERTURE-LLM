@@ -22,7 +22,7 @@ class DummyExternalTokenizer:
                           "can", "do", "said", "say", "went", "go", "come", "see", "make", "get",
                           "up", "down", "out", "in", "on", "off", "about", "into", "over", "under",
                           "then", "now", "when", "where", "why", "how", "what", "who", "whom",
-                          """.", ",", "!", "?", "'", "-", " "] # Punctuation and space
+                          ".", ",", "!", "?", "'", "-", " "] # CORRECTED: Punctuation and space
         else:
             self.vocab = vocab_list
 
