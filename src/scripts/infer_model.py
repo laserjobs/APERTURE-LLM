@@ -71,10 +71,10 @@ def main():
                         help="Limit online adaptation to this many initial generation steps.")
     # --- END ADDITIONS ---
 
-    # Keeping the old, unused argument for structure reference, though it seems specific to evaluate_model
+    # Retaining the original argument from the initial usage pattern, though likely unused here
     parser.add_argument('--benchmark_suite', type=str, default="M3E",
                         help='Name of the benchmark suite to use.')
-                        
+    
     args = parser.parse_args()
 
     set_seed(seed_value)
@@ -83,15 +83,33 @@ def main():
 
     # --- 1. Load APERTURE-LLM Config and Model ---
     aperture_config = load_config(args.config)
+    
+    # --- FIX: Robust configuration parsing to prevent AttributeErrors (e.g., missing .raw_audio) ---
+    config = aperture_config
+    config.model = SimpleNamespace(**config.model)
+    config.raw_encoder = SimpleNamespace(**config.raw_encoder)
+    config.raw_encoder.text = SimpleNamespace(**config.raw_encoder.text)
+    
+    config.raw_encoder.image = (SimpleNamespace(**config.raw_encoder.image)
+                                if hasattr(config.raw_encoder, 'image') and config.raw_encoder.image
+                                else SimpleNamespace(enabled=False))
+    config.raw_encoder.audio = (SimpleNamespace(**config.raw_encoder.audio)
+                                if hasattr(config.raw_encoder, 'audio') and config.raw_encoder.audio
+                                else SimpleNamespace(enabled=False))
+    
+    config.dynamic_resolution = SimpleNamespace(**config.dynamic_resolution)
+    config.output_convergence = SimpleNamespace(**config.output_convergence)
+    config.training = SimpleNamespace(**config.training)
+    # --- END FIX ---
+    
     aperture_char_tokenizer = CharTokenizer()
-    aperture_config.model.vocab_size = aperture_char_tokenizer.vocab_size
+    config.model.vocab_size = aperture_char_tokenizer.vocab_size
 
-    aperture_model = APERTURE_LLM(aperture_config).to(device)
+    aperture_model = APERTURE_LLM(config).to(device)
 
     # Load the trained APERTURE-LLM model
     if os.path.exists(args.model_path):
         try:
-            # Note: Setting weights_only=False is necessary if loading model state dicts saved without explicit strict=True/False on older PyTorch versions.
             aperture_model.load_state_dict(torch.load(args.model_path, map_location=device, weights_only=False))
             print(f"APERTURE-LLM loaded successfully from {args.model_path}")
         except RuntimeError as e:
@@ -109,6 +127,8 @@ def main():
     print(f"Dummy External Tokenizer vocab size: {external_tokenizer.vocab_size}")
 
     # --- 3. Initialize Adapters ---
+    # NOTE: This line failed previously because TokenToRawCharAdapter.__init__ was missing args.
+    # It is assumed token_bridge.py has been corrected to accept two arguments now.
     token_to_raw_char_adapter = TokenToRawCharAdapter(external_tokenizer, aperture_char_tokenizer).to(device)
     raw_char_to_token_adapter = RawCharToTokenAdapter(external_tokenizer, aperture_char_tokenizer).to(device)
     print("Aperture-Token Bridge Adapters initialized.")
@@ -132,7 +152,7 @@ def main():
 
     # --- Scenario 2: APERTURE-LLM Output (Raw Chars) -> Tokenized AI Input (Tokens) ---
     print("\n--- Scenario 2: APERTURE-LLM Output (Raw Chars) -> Tokenized AI Input (Tokens) ---")
-    aperture_prompt_text = args.raw_text_input  # Use the argument passed to infer_model.py
+    aperture_prompt_text = args.raw_text_input
     aperture_prompt_chars = torch.tensor(aperture_char_tokenizer.encode(aperture_prompt_text),
                                          dtype=torch.long, device=device).unsqueeze(0)
     print(f"APERTURE-LLM Prompt (text): '{aperture_prompt_text}'")
@@ -140,22 +160,24 @@ def main():
     # Prepare dummy multimodal inputs if enabled, for generation testing
     raw_image_input_gen = None
     raw_audio_input_gen = None
-    if aperture_config.raw_encoder.image.enabled and args.raw_image_input == 'dummy':
-        # Load dummy image matching expected config shape (assuming batch size 1)
-        raw_image_input_gen = torch.randn(1, aperture_config.raw_encoder.image.input_shape[0],
-                                          aperture_config.raw_encoder.image.input_shape[1],
-                                          aperture_config.raw_encoder.image.input_shape[2], device=device)
     
-    if aperture_config.raw_audio.enabled and args.raw_audio_input == 'dummy':
+    # FIX: Now safe to check config.raw_encoder.image/audio attributes
+    if config.raw_encoder.image.enabled and args.raw_image_input == 'dummy':
+        # Load dummy image matching expected config shape (assuming batch size 1)
+        raw_image_input_gen = torch.randn(1, config.raw_encoder.image.input_shape[0],
+                                          config.raw_encoder.image.input_shape[1],
+                                          config.raw_encoder.image.input_shape[2], device=device)
+    
+    if config.raw_encoder.audio.enabled and args.raw_audio_input == 'dummy':
          # Load dummy audio matching expected config shape
-        raw_audio_input_gen = torch.randn(1, aperture_config.raw_encoder.audio.num_samples, device=device)
+        raw_audio_input_gen = torch.randn(1, config.raw_encoder.audio.num_samples, device=device)
 
 
     with torch.no_grad():
         generated_indices = aperture_model.generate(
             raw_text_input=aperture_prompt_chars,
-            max_new_tokens=args.max_new_tokens, # Use the argument passed
-            focus_strength=args.focus_strength, # Use the argument passed
+            max_new_tokens=args.max_new_tokens,
+            focus_strength=args.focus_strength,
             raw_image_input=raw_image_input_gen,
             raw_audio_input=raw_audio_input_gen
         )
