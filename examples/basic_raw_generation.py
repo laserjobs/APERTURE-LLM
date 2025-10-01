@@ -3,23 +3,19 @@ import os
 import sys
 
 # Ensure we are in the root directory
-# This script is in examples/, so '..' takes it to the project root 'APERTURE-LLM/'
 project_root = os.path.dirname(os.path.abspath(__file__)) + '/../'
 os.chdir(project_root)
 
 # --- Configuration ---
 config_path = "src/config/model_config.yaml"
-# Corrected: model_file name should match the num_epochs in model_config.yaml (which is 1)
-model_file = "aperture_llm_model_epoch_1.pt"
+model_file = "aperture_llm_model_epoch_1.pt"  # Updated to reflect num_epochs: 1 from model_config.yaml
 seed_value = 42  # Consistent seed for reproducibility
 
 # --- Prepare PYTHONPATH for subprocesses ---
-# Add the 'src' directory (within the project root) to the PYTHONPATH.
-# This makes 'src/aperture_core' discoverable as 'aperture_core' for imports like
-# 'from aperture_core.model import APERTURE_LLM'.
+# Add the project root to the PYTHONPATH. This makes 'src' discoverable as a top-level package.
 current_python_path = os.environ.get('PYTHONPATH', '')
-# The crucial change: add project_root/src to PYTHONPATH
-new_python_path = os.path.join(os.path.abspath(project_root), 'src') + os.pathsep + current_python_path
+# Ensure project_root is at the beginning of PYTHONPATH
+new_python_path = os.path.abspath(project_root) + os.pathsep + current_python_path
 subprocess_env = os.environ.copy()
 subprocess_env['PYTHONPATH'] = new_python_path
 
@@ -85,6 +81,23 @@ eval_result = subprocess.run(eval_command, capture_output=True, text=True, env=s
 print(eval_result.stdout)
 if eval_result.stderr:
     print("Evaluation Errors:\n", eval_result.stderr)
+
+# --- ADDED: Run Aperture-Token Bridge Demonstration ---
+print("\n--- Running Aperture-Token Bridge Demonstration ---")
+bridge_command = [
+    sys.executable, "examples/example_bridge.py",
+    "--config", config_path,
+    "--model_path", model_file
+]
+bridge_result = subprocess.run(bridge_command, capture_output=True, text=True, env=subprocess_env)
+print(bridge_result.stdout)
+if bridge_result.stderr:
+    print("Aperture-Token Bridge Errors:\n", bridge_result.stderr)
+    # The bridge demo should ideally not fail the CI, unless its own logic has issues
+    # But for a robust CI, any subprocess failure should exit the parent.
+    if bridge_result.returncode != 0:
+        print("Aperture-Token Bridge demonstration failed. Exiting.")
+        exit(1)
 
 print("\n--- APERTURE-LLM Prototype Demonstration Complete ---")
 print("NOTE: The generated text will likely be simple and nonsensical in this prototype ")
