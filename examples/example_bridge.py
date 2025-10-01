@@ -1,26 +1,31 @@
 # examples/example_bridge.py
+import argparse
 import os
-import sys
+import sys # Keep sys for sys.exit
 import torch
 from types import SimpleNamespace
 import yaml
 
-# E402 fixed: standard library imports before local path modifications
-# Then local path modification
+# Add src/ to the Python path for imports like 'src.aperture_core'
+# This is explicitly for when this script might be run standalone or
+# if the parent process's PYTHONPATH isn't fully inherited/configured.
+# This assumes the script is run from the repo root or from the examples directory.
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
+# Also add the 'src' directory itself if 'aperture_core' is expected as a top-level package
+# For your current setup where train_model etc. use 'from aperture_core.model',
+# this means 'aperture_core' needs to be directly on the path.
+# However, the parent script in basic_raw_generation.py already sets PYTHONPATH for subprocesses
+# to include the project_root. So `from src.aperture_core` is the most robust style here.
 
-# Then local project imports
 from src.aperture_core.model import APERTURE_LLM
 from src.aperture_core.utils import CharTokenizer, set_seed
 from src.aperture_core.token_bridge import DummyExternalTokenizer, TokenToRawCharAdapter, RawCharToTokenAdapter
 
 
 # --- Configuration ---
-config_path = "src/config/model_config.yaml"
-# This model file is expected to be created by src/scripts/train_model.py
-model_file = "aperture_llm_model_epoch_1.pt"
+# config_path and model_file are now passed as arguments when run as a subprocess
 seed_value = 42
 
 
@@ -37,7 +42,6 @@ def load_config(config_path):
         sys.exit(1)
 
     # Convert dictionary to SimpleNamespace for easy attribute access
-    # F841 fixed: returning the converted namespace directly
     def convert_dict_to_namespace(obj):
         if isinstance(obj, dict):
             return SimpleNamespace(**{k: convert_dict_to_namespace(v) for k, v in obj.items()})
@@ -47,12 +51,19 @@ def load_config(config_path):
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Demonstrate Aperture-Token Bridge.")
+    parser.add_argument('--config', type=str, default='src/config/model_config.yaml',
+                        help='Path to the model configuration YAML file.')
+    parser.add_argument('--model_path', type=str, required=True,
+                        help='Path to the trained model checkpoint.')
+    args = parser.parse_args()
+
     set_seed(seed_value)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(f"Using device: {device}")
 
     # --- 1. Load APERTURE-LLM Config and Model ---
-    aperture_config = load_config(config_path)
+    aperture_config = load_config(args.config)
     aperture_char_tokenizer = CharTokenizer()
     # Update vocab_size in config based on actual tokenizer vocab size
     aperture_config.model.vocab_size = aperture_char_tokenizer.vocab_size
@@ -60,16 +71,16 @@ def main():
     aperture_model = APERTURE_LLM(aperture_config).to(device)
 
     # Load the trained APERTURE-LLM model
-    if os.path.exists(model_file):
+    if os.path.exists(args.model_path):
         try:
-            aperture_model.load_state_dict(torch.load(model_file, map_location=device, weights_only=False))
-            print(f"APERTURE-LLM loaded successfully from {model_file}")
+            aperture_model.load_state_dict(torch.load(args.model_path, map_location=device, weights_only=False))
+            print(f"APERTURE-LLM loaded successfully from {args.model_path}")
         except RuntimeError as e:
-            print(f"Error: Failed to load APERTURE-LLM checkpoint {model_file}. Details: {e}")
+            print(f"Error: Failed to load APERTURE-LLM checkpoint {args.model_path}. Details: {e}")
             sys.exit(1)
     else:
-        print(f"Warning: APERTURE-LLM checkpoint {model_file} not found. "
-              "Please run 'src/scripts/train_model.py' first to train the model. "
+        print(f"Warning: APERTURE-LLM checkpoint {args.model_path} not found. "
+              "Please ensure training was successful. "
               "Proceeding with an untrained model for adapter testing, output may be random.")
 
     aperture_model.eval()  # Set model to evaluation mode
@@ -134,7 +145,11 @@ def main():
 
     # --- Scenario 3: Mixed Multi-Modal Input to APERTURE-LLM, then text output to Tokenized AI ---
     print("\n--- Scenario 3: Multi-Modal Input to APERTURE-LLM -> Raw Chars -> Tokenized AI Input ---")
-    if aperture_config.raw_encoder.image.enabled and aperture_config.raw_encoder.audio.enabled:
+    # Check if multi-modal encoders are enabled in config
+    image_enabled = hasattr(aperture_config.raw_encoder, 'image') and aperture_config.raw_encoder.image.enabled
+    audio_enabled = hasattr(aperture_config.raw_encoder, 'audio') and aperture_config.raw_encoder.audio.enabled
+
+    if image_enabled and audio_enabled:
         aperture_mm_prompt_text = "Describe this scene:"
         aperture_mm_prompt_chars = torch.tensor(aperture_char_tokenizer.encode(aperture_mm_prompt_text),
                                                 dtype=torch.long, device=device).unsqueeze(0)
