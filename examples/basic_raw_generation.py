@@ -93,8 +93,7 @@ bridge_result = subprocess.run(bridge_command, capture_output=True, text=True, e
 print(bridge_result.stdout)
 if bridge_result.stderr:
     print("Aperture-Token Bridge Errors:\n", bridge_result.stderr)
-    # The bridge demo should ideally not fail the CI, unless its own logic has issues
-    # But for a robust CI, any subprocess failure should exit the parent.
+    # For a robust CI, any subprocess failure should exit the parent.
     if bridge_result.returncode != 0:
         print("Aperture-Token Bridge demonstration failed. Exiting.")
         exit(1)
