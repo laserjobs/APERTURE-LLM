@@ -2,11 +2,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import warnings
+# Removed 'warnings' as it was imported but unused (F401)
 
-# For illustration, let's assume a dummy 'ExternalTokenizer' that mimics
-# a Byte Pair Encoding (BPE) or WordPiece tokenizer.
-# In a real scenario, this would be a Hugging Face tokenizer (e.g., AutoTokenizer).
+
 class DummyExternalTokenizer:
     """
     A placeholder for an external, traditional token-based tokenizer (e.g., BPE, WordPiece).
@@ -22,7 +20,7 @@ class DummyExternalTokenizer:
                           "can", "do", "said", "say", "went", "go", "come", "see", "make", "get",
                           "up", "down", "out", "in", "on", "off", "about", "into", "over", "under",
                           "then", "now", "when", "where", "why", "how", "what", "who", "whom",
-                          ".", ",", "!", "?", "'", "-", " "] # CORRECTED: Punctuation and space
+                          ".", ",", "!", "?", "'", "-", " "] # Corrected SyntaxError
         else:
             self.vocab = vocab_list
 
@@ -41,7 +39,8 @@ class DummyExternalTokenizer:
         
         # Simple splitting by spaces and common punctuation.
         # This is not robust like BPE but serves the purpose of mapping string to token IDs.
-        processed_text = text.replace('.', ' . ').replace(',', ' , ').replace('!', ' ! ').replace('?', ' ? ').replace("'", " ' ").replace('-', ' - ')
+        processed_text = text.replace('.', ' . ').replace(',', ' , ').replace('!', ' ! ') \
+                             .replace('?', ' ? ').replace("'", " ' ").replace('-', ' - ') # E501 fixed
         words_and_punctuation = processed_text.lower().split()
         
         token_ids = []
@@ -65,10 +64,11 @@ class DummyExternalTokenizer:
         decoded_parts = []
         for i in token_ids:
             token_str = self.itos.get(i, self.itos[self.unk_token_id])
-            if token_str == " ": # Handle spaces explicitly
+            if token_str == " ":  # Handle spaces explicitly
                 decoded_parts.append(" ")
-            elif token_str in [".", ",", "!", "?", "'", "-"]: # Handle punctuation with no preceding space
-                if decoded_parts and decoded_parts[-1] == " ": # Remove space if punctuation follows
+            # E261 fixed: at least two spaces before inline comment
+            elif token_str in [".", ",", "!", "?", "'", "-"]:  # Handle punctuation with no preceding space
+                if decoded_parts and decoded_parts[-1] == " ":  # Remove space if punctuation follows
                     decoded_parts.pop()
                 decoded_parts.append(token_str)
             else:
@@ -120,7 +120,8 @@ class TokenToRawCharAdapter(nn.Module):
 
             # 2. Encode the raw string into APERTURE-LLM's character indices
             char_indices = self.aperture_char_tokenizer.encode(decoded_text)
-            batch_raw_char_indices.append(torch.tensor(char_indices, dtype=torch.long, device=token_ids.device))
+            batch_raw_char_indices.append(torch.tensor(char_indices, dtype=torch.long,
+                                                       device=token_ids.device)) # E501 fixed
 
         # Pad sequences to the maximum length in the batch
         max_len = max(len(seq) for seq in batch_raw_char_indices)
@@ -170,13 +171,15 @@ class RawCharToTokenAdapter(nn.Module):
 
             # 2. Encode the raw string into the external tokenizer's token IDs
             token_ids = self.external_tokenizer.encode(decoded_text)
-            batch_token_ids.append(torch.tensor(token_ids, dtype=torch.long, device=char_indices.device))
+            batch_token_ids.append(torch.tensor(token_ids, dtype=torch.long,
+                                                device=char_indices.device)) # E501 fixed
 
         # Pad sequences to the maximum length in the batch
         max_len = max(len(seq) for seq in batch_token_ids)
         # Assuming padding with the external tokenizer's UNK token ID
         padded_batch = torch.stack([
-            F.pad(seq, (0, max_len - len(seq)), 'constant', self.external_tokenizer.unk_token_id) for seq in batch_token_ids
+            F.pad(seq, (0, max_len - len(seq)), 'constant', self.external_tokenizer.unk_token_id)
+            for seq in batch_token_ids # E501 fixed
         ])
         
         return padded_batch
