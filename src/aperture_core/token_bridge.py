@@ -2,7 +2,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-# No 'warnings' import needed as it was unused (F401)
+# Removed 'warnings' as it was imported but unused (F401)
 
 
 class DummyExternalTokenizer:
