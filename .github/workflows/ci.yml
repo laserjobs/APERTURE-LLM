@@ -53,10 +53,10 @@ jobs:
       - name: Run a dummy train/infer/eval sequence (conceptual check)
         run: |
           # 1. Train the model (creates aperture_llm_model_epoch_1.pt based on num_epochs: 1)
-          python src/scripts/train_model.py --config src/config/model_config.yaml
+          PYTHONPATH=$PWD python src/scripts/train_model.py --config src/config/model_config.yaml
           
           # 2. Run the bridge demonstration, providing the required --model_path
-          # Assuming example_bridge.py correctly implements the logic to run train->infer->eval sequence
-          python examples/example_bridge.py \
+          # example_bridge.py now requires --model_path to run successfully.
+          PYTHONPATH=$PWD python examples/example_bridge.py \
             --config src/config/model_config.yaml \
             --model_path aperture_llm_model_epoch_1.pt
