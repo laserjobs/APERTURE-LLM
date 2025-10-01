@@ -1,31 +1,23 @@
-# examples/example_bridge.py
 import argparse
 import os
-import sys # Keep sys for sys.exit
+import sys
 import torch
 from types import SimpleNamespace
 import yaml
 
-# Add src/ to the Python path for imports like 'src.aperture_core'
-# This is explicitly for when this script might be run standalone or
-# if the parent process's PYTHONPATH isn't fully inherited/configured.
-# This assumes the script is run from the repo root or from the examples directory.
+# Add project root to sys.path to ensure 'src' is discoverable as a package
+# This makes it robust whether run directly or as a subprocess.
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
-# Also add the 'src' directory itself if 'aperture_core' is expected as a top-level package
-# For your current setup where train_model etc. use 'from aperture_core.model',
-# this means 'aperture_core' needs to be directly on the path.
-# However, the parent script in basic_raw_generation.py already sets PYTHONPATH for subprocesses
-# to include the project_root. So `from src.aperture_core` is the most robust style here.
 
+# Now, import modules using the `src.aperture_core` prefix
 from src.aperture_core.model import APERTURE_LLM
 from src.aperture_core.utils import CharTokenizer, set_seed
 from src.aperture_core.token_bridge import DummyExternalTokenizer, TokenToRawCharAdapter, RawCharToTokenAdapter
 
 
 # --- Configuration ---
-# config_path and model_file are now passed as arguments when run as a subprocess
 seed_value = 42
 
 
@@ -65,7 +57,6 @@ def main():
     # --- 1. Load APERTURE-LLM Config and Model ---
     aperture_config = load_config(args.config)
     aperture_char_tokenizer = CharTokenizer()
-    # Update vocab_size in config based on actual tokenizer vocab size
     aperture_config.model.vocab_size = aperture_char_tokenizer.vocab_size
 
     aperture_model = APERTURE_LLM(aperture_config).to(device)
@@ -97,45 +88,36 @@ def main():
     # --- Scenario 1: Tokenized AI output -> APERTURE-LLM Input ---
     print("\n--- Scenario 1: Tokenized AI Output (Tokens) -> APERTURE-LLM Input (Raw Chars) ---")
     tokenized_ai_output_text = "The quick brown fox jumps over the lazy dog."
-    # Simulate a tokenized AI encoding its output
     tokenized_ai_output_tokens = torch.tensor(external_tokenizer.encode(tokenized_ai_output_text),
                                               dtype=torch.long, device=device).unsqueeze(0)
     print(f"Tokenized AI Output (original text): '{tokenized_ai_output_text}'")
     print(f"Tokenized AI Output (encoded tokens): {tokenized_ai_output_tokens.tolist()}")
 
-    # Convert tokenized output to raw characters for APERTURE-LLM
     aperture_input_chars = token_to_raw_char_adapter(tokenized_ai_output_tokens)
     print(f"APERTURE-LLM Input (raw chars, decoded): "
           f"'{aperture_char_tokenizer.decode(aperture_input_chars[0].tolist())}'")
 
-    # Now, APERTURE-LLM can process this as raw input
     with torch.no_grad():
-        # APERTURE-LLM's forward pass processes the raw character input
         aperture_processed_logits = aperture_model(aperture_input_chars, focus_strength=0.7)
         print(f"APERTURE-LLM processed the raw char input. Logits shape: "
               f"{aperture_processed_logits.shape}")
-        # Note: 'aperture_processed_logits' would then be used for APERTURE-LLM's own
-        # generation if desired
 
     # --- Scenario 2: APERTURE-LLM Output (Raw Chars) -> Tokenized AI Input (Tokens) ---
     print("\n--- Scenario 2: APERTURE-LLM Output (Raw Chars) -> Tokenized AI Input (Tokens) ---")
     aperture_prompt_text = "The future of AI is"
-    # APERTURE-LLM's input is always raw characters
     aperture_prompt_chars = torch.tensor(aperture_char_tokenizer.encode(aperture_prompt_text),
                                          dtype=torch.long, device=device).unsqueeze(0)
     print(f"APERTURE-LLM Prompt (text): '{aperture_prompt_text}'")
 
-    # APERTURE-LLM generates raw characters
     with torch.no_grad():
         aperture_generated_chars = aperture_model.generate(
             raw_text_input=aperture_prompt_chars,
             max_new_tokens=50,
-            focus_strength=0.9  # High focus for more decisive output
+            focus_strength=0.9
         )
     aperture_generated_text = aperture_char_tokenizer.decode(aperture_generated_chars[0].tolist())
     print(f"APERTURE-LLM Generated (raw chars): '{aperture_generated_text}'")
 
-    # Convert APERTURE-LLM's raw character output to tokens for a tokenized AI
     tokenized_ai_input_tokens = raw_char_to_token_adapter(aperture_generated_chars)
     print(f"Tokenized AI Input (tokens): {tokenized_ai_input_tokens.tolist()}")
     print(f"Tokenized AI Input (decoded): "
@@ -145,7 +127,6 @@ def main():
 
     # --- Scenario 3: Mixed Multi-Modal Input to APERTURE-LLM, then text output to Tokenized AI ---
     print("\n--- Scenario 3: Multi-Modal Input to APERTURE-LLM -> Raw Chars -> Tokenized AI Input ---")
-    # Check if multi-modal encoders are enabled in config
     image_enabled = hasattr(aperture_config.raw_encoder, 'image') and aperture_config.raw_encoder.image.enabled
     audio_enabled = hasattr(aperture_config.raw_encoder, 'audio') and aperture_config.raw_encoder.audio.enabled
 
@@ -154,7 +135,6 @@ def main():
         aperture_mm_prompt_chars = torch.tensor(aperture_char_tokenizer.encode(aperture_mm_prompt_text),
                                                 dtype=torch.long, device=device).unsqueeze(0)
 
-        # Dummy multi-modal inputs (replace with actual loaded data in a real application)
         raw_image_input = torch.randn(1, aperture_config.raw_encoder.image.input_shape[0],
                                       aperture_config.raw_encoder.image.input_shape[1],
                                       aperture_config.raw_encoder.image.input_shape[2], device=device)
@@ -173,7 +153,6 @@ def main():
         aperture_mm_generated_text = aperture_char_tokenizer.decode(aperture_mm_generated_chars[0].tolist())
         print(f"APERTURE-LLM Multi-Modal Generated (raw chars): '{aperture_mm_generated_text}'")
 
-        # Convert to tokens for consumption by a tokenized AI
         tokenized_ai_mm_input_tokens = raw_char_to_token_adapter(aperture_mm_generated_chars)
         print(f"Tokenized AI (consuming MM output) Decoded: "
               f"'{external_tokenizer.decode(tokenized_ai_mm_input_tokens[0].tolist())}'")
