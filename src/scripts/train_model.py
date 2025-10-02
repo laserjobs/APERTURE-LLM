@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 # Original path modification that you said worked
 # This ensures `repo_root/src` is on `sys.path`, making `aperture_core` discoverable
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+# sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 # CRUCIAL FIX: Change to `from aperture_core.model` (which resolves because `repo_root/src` is on path)
 # The previous version had `from aperture_core.model`, but it was failing.
