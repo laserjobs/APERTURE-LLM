@@ -38,10 +38,9 @@ def load_config(config_path):
 
     return convert_dict_to_namespace(config_dict)
 
+
 def _setup_config(config_dict):
     """Converts configuration dictionary to SimpleNamespace structure robustly."""
-    config = SimpleNamespace(**config_dict)
-
     # Helper for robustly converting nested dicts to namespaces
     def to_ns_recursive(obj):
         if isinstance(obj, dict):
@@ -60,7 +59,7 @@ def _setup_config(config_dict):
             config.raw_encoder.audio = SimpleNamespace(enabled=False)
     else:
         # Fallback if raw_encoder structure is completely missing/malformed
-        config.raw_encoder = SimpleNamespace(enabled=False) 
+        config.raw_encoder = SimpleNamespace(enabled=False)
 
     return config
 
@@ -78,7 +77,8 @@ def main():
     parser.add_argument('--max_new_tokens', type=int, default=20,
                         help='Maximum number of new tokens to generate.')
     parser.add_argument('--focus_strength', type=float, default=0.5,
-                        help='Focus strength for non-linear output convergence (0.0 to 1.0).')
+                        help='Focus strength for non-linear output convergence '
+                             '(0.0 to 1.0).')
     parser.add_argument('--output_modality', type=str, default="text",
                         help='Desired output modality (e.g., "text", "image", "audio").')
     parser.add_argument('--raw_image_input', type=str, default=None,
@@ -86,9 +86,11 @@ def main():
     parser.add_argument('--raw_audio_input', type=str, default=None,
                         help="Path to raw audio data, or 'dummy' to use random data.")
     parser.add_argument('--targets', type=str, default=None,
-                        help="Path to target text for online adaptation, or 'dummy' to use dummy targets.")
+                        help="Path to target text for online adaptation, or "
+                             "'dummy' to use dummy targets.")
     parser.add_argument('--adaptation_steps_limit', type=int, default=None,
-                        help="Limit online adaptation to this many initial generation steps.")
+                        help="Limit online adaptation to this many initial "
+                             "generation steps.")
     # --- END ADDITIONS ---
 
     # Original argument kept for reference, though not used in the failing command
@@ -173,13 +175,17 @@ def main():
     raw_audio_input_gen = None
 
     # Check configuration structure before accessing nested attributes for dummy inputs
-    image_enabled = hasattr(config, 'raw_encoder') and hasattr(config.raw_encoder, 'image') and config.raw_encoder.image.enabled
-    audio_enabled = hasattr(config, 'raw_encoder') and hasattr(config.raw_encoder, 'audio') and config.raw_encoder.audio.enabled
-    
+    image_enabled = (hasattr(config, 'raw_encoder') and
+                     hasattr(config.raw_encoder, 'image') and
+                     config.raw_encoder.image.enabled)
+    audio_enabled = (hasattr(config, 'raw_encoder') and
+                     hasattr(config.raw_encoder, 'audio') and
+                     config.raw_encoder.audio.enabled)
+
     if image_enabled and args.raw_image_input == 'dummy':
         # Load dummy image matching expected config shape (assuming batch size 1)
-        # Requires config.raw_encoder.image.input_shape to be defined if enabled
-        if hasattr(config.raw_encoder.image, 'input_shape') and len(config.raw_encoder.image.input_shape) == 3:
+        if (hasattr(config.raw_encoder.image, 'input_shape') and
+                len(config.raw_encoder.image.input_shape) == 3):
             raw_image_input_gen = torch.randn(1, config.raw_encoder.image.input_shape[0],
                                               config.raw_encoder.image.input_shape[1],
                                               config.raw_encoder.image.input_shape[2], device=device)
@@ -187,7 +193,7 @@ def main():
     if audio_enabled and args.raw_audio_input == 'dummy':
         # Requires config.raw_encoder.audio.num_samples to be defined if enabled
         if hasattr(config.raw_encoder.audio, 'num_samples'):
-             raw_audio_input_gen = torch.randn(1, config.raw_encoder.audio.num_samples, device=device)
+            raw_audio_input_gen = torch.randn(1, config.raw_encoder.audio.num_samples, device=device)
 
 
     with torch.no_grad():
@@ -217,7 +223,8 @@ def main():
         aperture_mm_prompt_chars = torch.tensor(aperture_char_tokenizer.encode(aperture_mm_prompt_text),
                                                 dtype=torch.long, device=device).unsqueeze(0)
 
-        print(f"APERTURE-LLM Multi-Modal Prompt (text): '{aperture_mm_prompt_text}' with dummy image/audio.")
+        print(f"APERTURE-LLM Multi-Modal Prompt (text): '{aperture_mm_prompt_text}' "
+              "with dummy image/audio.")
 
         with torch.no_grad():
             aperture_mm_generated_chars = aperture_model.generate(
