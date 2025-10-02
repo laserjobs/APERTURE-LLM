@@ -6,12 +6,6 @@ from types import SimpleNamespace
 import yaml
 import warnings
 
-# Add project root to sys.path to ensure 'src' is discoverable as a package
-# This makes it robust whether run directly or as a subprocess.
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
-
 # Now, import modules using the `src.aperture_core` prefix
 from src.aperture_core.model import APERTURE_LLM
 from src.aperture_core.utils import CharTokenizer, set_seed
@@ -51,11 +45,11 @@ def main():
                         help='Path to the model configuration YAML file.')
     parser.add_argument('--model_path', type=str, required=True,
                         help='Path to the trained model checkpoint.')
-    
+
     # --- ADDITIONS: Arguments required for generation and multi-modal inference ---
-    parser.add_argument('--raw_text_input', type=str, default="The future of AI is", # Set default closer to usage
+    parser.add_argument('--raw_text_input', type=str, default="The future of AI is",  # Set default closer to usage
                         help='Raw text prompt for generation.')
-    parser.add_argument('--max_new_tokens', type=int, default=20, # Set default closer to usage
+    parser.add_argument('--max_new_tokens', type=int, default=20,  # Set default closer to usage
                         help='Maximum number of new tokens to generate.')
     parser.add_argument('--focus_strength', type=float, default=0.5,
                         help='Focus strength for non-linear output convergence (0.0 to 1.0).')
@@ -74,7 +68,7 @@ def main():
     # Original argument kept for reference, though not used in the failing command
     parser.add_argument('--benchmark_suite', type=str, default="M3E",
                         help='Name of the benchmark suite to use.')
-                        
+
     args = parser.parse_args()
 
     set_seed(seed_value)
@@ -82,7 +76,7 @@ def main():
     print(f"Using device: {device}")
 
     # --- 1. Load APERTURE-LLM Config and Model ---
-    
+
     # Load raw dictionary first
     try:
         with open(args.config, 'r') as f:
@@ -90,29 +84,29 @@ def main():
     except Exception as e:
         print(f"Error loading config: {e}")
         sys.exit(1)
-    
+
     # FIX: Robust conversion to SimpleNamespace structure to prevent AttributeError later
     config = SimpleNamespace(**config_dict)
-    
+
     if hasattr(config, 'model') and isinstance(config.model, dict):
         config.model = SimpleNamespace(**config.model)
-    
+
     if hasattr(config, 'raw_encoder') and isinstance(config.raw_encoder, dict):
         config.raw_encoder = SimpleNamespace(**config.raw_encoder)
-        
+
         if hasattr(config.raw_encoder, 'text') and isinstance(config.raw_encoder.text, dict):
             config.raw_encoder.text = SimpleNamespace(**config.raw_encoder.text)
-        
+
         # Explicitly handle image/audio sections to ensure 'enabled' exists
         if hasattr(config.raw_encoder, 'image') and isinstance(config.raw_encoder.image, dict):
             config.raw_encoder.image = SimpleNamespace(**config.raw_encoder.image)
         else:
             config.raw_encoder.image = SimpleNamespace(enabled=False)
-            
+
         if hasattr(config.raw_encoder, 'audio') and isinstance(config.raw_encoder.audio, dict):
             config.raw_encoder.audio = SimpleNamespace(**config.raw_encoder.audio)
         else:
-            config.raw_encoder.audio = SimpleNamespace(enabled=False) # THIS FIXES THE ERROR LINE 149
+            config.raw_encoder.audio = SimpleNamespace(enabled=False)  # THIS FIXES THE ERROR LINE 149
 
     if hasattr(config, 'dynamic_resolution') and isinstance(config.dynamic_resolution, dict):
         config.dynamic_resolution = SimpleNamespace(**config.dynamic_resolution)
@@ -122,7 +116,7 @@ def main():
 
     if hasattr(config, 'training') and isinstance(config.training, dict):
         config.training = SimpleNamespace(**config.training)
-    
+
     aperture_char_tokenizer = CharTokenizer()
     config.model.vocab_size = aperture_char_tokenizer.vocab_size
 
@@ -179,17 +173,16 @@ def main():
     # Prepare dummy multimodal inputs if enabled, for generation testing
     raw_image_input_gen = None
     raw_audio_input_gen = None
-    
+
     if config.raw_encoder.image.enabled and args.raw_image_input == 'dummy':
         # Load dummy image matching expected config shape (assuming batch size 1)
         raw_image_input_gen = torch.randn(1, config.raw_encoder.image.input_shape[0],
                                           config.raw_encoder.image.input_shape[1],
                                           config.raw_encoder.image.input_shape[2], device=device)
-    
-    if config.raw_encoder.audio.enabled and args.raw_audio_input == 'dummy':
-         # Load dummy audio matching expected config shape
-        raw_audio_input_gen = torch.randn(1, config.raw_encoder.audio.num_samples, device=device)
 
+    if config.raw_encoder.audio.enabled and args.raw_audio_input == 'dummy':
+    # Load dummy audio matching expected config shape
+        raw_audio_input_gen = torch.randn(1, config.raw_encoder.audio.num_samples, device=device)
 
     with torch.no_grad():
         generated_indices = aperture_model.generate(
@@ -199,7 +192,7 @@ def main():
             raw_image_input=raw_image_input_gen,
             raw_audio_input=raw_audio_input_gen
         )
-    
+
     aperture_generated_text = aperture_char_tokenizer.decode(generated_indices[0].tolist())
     print(f"APERTURE-LLM Generated (raw chars): '{aperture_generated_text}'")
 
@@ -212,7 +205,7 @@ def main():
 
     # --- Scenario 3: Mixed Multi-Modal Input to APERTURE-LLM, then text output to Tokenized AI ---
     print("\n--- Scenario 3: Multi-Modal Input to APERTURE-LLM -> Raw Chars -> Tokenized AI Input ---")
-    
+
     if raw_image_input_gen is not None or raw_audio_input_gen is not None:
         aperture_mm_prompt_text = "Describe this scene:"
         aperture_mm_prompt_chars = torch.tensor(aperture_char_tokenizer.encode(aperture_mm_prompt_text),
