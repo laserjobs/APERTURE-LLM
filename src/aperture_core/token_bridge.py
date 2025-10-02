@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import List # <-- ADDED FOR PYTHON 3.8 COMPATIBILITY
+from typing import List  # <-- ADDED FOR PYTHON 3.8 COMPATIBILITY
 
 
 class DummyExternalTokenizer:
