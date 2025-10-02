@@ -64,6 +64,14 @@ def _setup_config(config_dict):
     return config
 
 
+def _initialize_bridge(external_tokenizer, aperture_char_tokenizer, device):
+    """Initializes Token and Raw Char Adapters."""
+    token_to_raw_char_adapter = TokenToRawCharAdapter(external_tokenizer, aperture_char_tokenizer).to(device)
+    raw_char_to_token_adapter = RawCharToTokenAdapter(external_tokenizer, aperture_char_tokenizer).to(device)
+    print("Aperture-Token Bridge Adapters initialized.")
+    return token_to_raw_char_adapter, raw_char_to_token_adapter
+
+
 def main():
     parser = argparse.ArgumentParser(description="Demonstrate Aperture-Token Bridge.")
     parser.add_argument('--config', type=str, default='src/config/model_config.yaml',
@@ -113,7 +121,6 @@ def main():
         print(f"Error loading config: {e}")
         sys.exit(1)
 
-    # Use the helper function to structure the config and fix potential missing keys
     config = _setup_config(config_dict)
 
     aperture_char_tokenizer = CharTokenizer()
@@ -124,7 +131,6 @@ def main():
     # Load the trained APERTURE-LLM model
     if os.path.exists(args.model_path):
         try:
-            # Setting weights_only=False might trigger FutureWarning, which is suppressed globally
             aperture_model.load_state_dict(torch.load(args.model_path, map_location=device, weights_only=False))
             print(f"APERTURE-LLM loaded successfully from {args.model_path}")
         except RuntimeError as e:
@@ -142,9 +148,10 @@ def main():
     print(f"Dummy External Tokenizer vocab size: {external_tokenizer.vocab_size}")
 
     # --- 3. Initialize Adapters ---
-    token_to_raw_char_adapter = TokenToRawCharAdapter(external_tokenizer, aperture_char_tokenizer).to(device)
-    raw_char_to_token_adapter = RawCharToTokenAdapter(external_tokenizer, aperture_char_tokenizer).to(device)
-    print("Aperture-Token Bridge Adapters initialized.")
+    token_to_raw_char_adapter, raw_char_to_token_adapter = _initialize_bridge(
+        external_tokenizer, aperture_char_tokenizer, device
+    )
+
 
     # --- Scenario 1: Tokenized AI output -> APERTURE-LLM Input ---
     print("\n--- Scenario 1: Tokenized AI Output (Tokens) -> APERTURE-LLM Input (Raw Chars) ---")
