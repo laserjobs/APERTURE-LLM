@@ -5,12 +5,6 @@ import torch
 from types import SimpleNamespace
 import yaml
 
-# Add project root to sys.path to ensure 'src' is discoverable as a package
-# This makes it robust whether run directly or as a subprocess.
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
-
 # Now, import modules using the `src.aperture_core` prefix
 from src.aperture_core.model import APERTURE_LLM
 from src.aperture_core.utils import CharTokenizer, set_seed
