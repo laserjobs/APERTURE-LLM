@@ -152,7 +152,6 @@ def main():
         external_tokenizer, aperture_char_tokenizer, device
     )
 
-
     # --- Scenario 1: Tokenized AI output -> APERTURE-LLM Input ---
     print("\n--- Scenario 1: Tokenized AI Output (Tokens) -> APERTURE-LLM Input (Raw Chars) ---")
     tokenized_ai_output_text = "The quick brown fox jumps over the lazy dog."
@@ -201,7 +200,6 @@ def main():
         # Requires config.raw_encoder.audio.num_samples to be defined if enabled
         if hasattr(config.raw_encoder.audio, 'num_samples'):
             raw_audio_input_gen = torch.randn(1, config.raw_encoder.audio.num_samples, device=device)
-
 
     with torch.no_grad():
         generated_indices = aperture_model.generate(
