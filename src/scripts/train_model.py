@@ -1,5 +1,4 @@
 import argparse
-import os
 import sys
 from types import SimpleNamespace
 
@@ -8,41 +7,6 @@ import torch.nn as nn
 import torch.optim as optim
 import yaml
 from tqdm import tqdm
-
-# Original path modification that you said worked
-# This ensures `repo_root/src` is on `sys.path`, making `aperture_core` discoverable
-# sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-
-# CRUCIAL FIX: Change to `from aperture_core.model` (which resolves because `repo_root/src` is on path)
-# The previous version had `from aperture_core.model`, but it was failing.
-# If `sys.path.append(os.path.join(os.path.dirname(__file__), '..'))` adds `repo_root/src`
-# to sys.path, then `aperture_core` is the correct import.
-# The error means that `aperture_core` *wasn't* found. This implies the path append
-# was not working or `PYTHONPATH` was conflicting.
-# Let's revert this to match the *original* implicit working state you had.
-# The core problem is that `sys.path.append` from a subprocess might be tricky.
-# To match the error and the structure, the *simplest* fix is to assume
-# that `src` is what needs to be added to PYTHONPATH.
-# But `basic_raw_generation.py` adds `repo_root`.
-# This is where the contradiction lies.
-#
-# Let's assume the user's explicit Python path modification in basic_raw_generation.py is the source of truth for subprocesses.
-# And `basic_raw_generation.py` sets `PYTHONPATH=repo_root`.
-# Therefore, `src` is a top-level package. So imports MUST be `from src.aperture_core.model`.
-# The `sys.path.append` inside train_model.py is redundant *if* the parent is doing its job.
-# The `ModuleNotFoundError: No module named 'aperture_core'` implies it's looking for `repo_root/aperture_core`.
-#
-# Okay, new strategy. If `basic_raw_generation.py` is setting `PYTHONPATH` to the *repo root*,
-# then all imports must be `from src.aperture_core.model`.
-# The `sys.path.append` in train_model.py should be removed as it's confusing and possibly conflicting.
-#
-# Final attempt at this specific file's import:
-# Assuming `PYTHONPATH` has `repo_root` because `basic_raw_generation.py` explicitly sets it that way.
-# And the local `sys.path.append` in `src/scripts/*` is then confusing.
-# The most robust fix is to rely SOLELY on `PYTHONPATH` from the parent.
-
-# REMOVED: sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-# Relying on PYTHONPATH set by examples/basic_raw_generation.py
 
 # CRUCIAL FIX: Change import to correctly find module when repo_root is on PYTHONPATH
 from src.aperture_core.model import APERTURE_LLM
