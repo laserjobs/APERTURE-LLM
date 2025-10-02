@@ -38,6 +38,32 @@ def load_config(config_path):
 
     return convert_dict_to_namespace(config_dict)
 
+def _setup_config(config_dict):
+    """Converts configuration dictionary to SimpleNamespace structure robustly."""
+    config = SimpleNamespace(**config_dict)
+
+    # Helper for robustly converting nested dicts to namespaces
+    def to_ns_recursive(obj):
+        if isinstance(obj, dict):
+            ns = SimpleNamespace(**{k: to_ns_recursive(v) for k, v in obj.items()})
+            return ns
+        return obj
+
+    # Apply recursive conversion to the whole config structure
+    config = to_ns_recursive(config_dict)
+
+    # Explicitly ensure modality encoders are present if they were missing in YAML
+    if hasattr(config, 'raw_encoder') and isinstance(config.raw_encoder, SimpleNamespace):
+        if not hasattr(config.raw_encoder, 'image'):
+            config.raw_encoder.image = SimpleNamespace(enabled=False)
+        if not hasattr(config.raw_encoder, 'audio'):
+            config.raw_encoder.audio = SimpleNamespace(enabled=False)
+    else:
+        # Fallback if raw_encoder structure is completely missing/malformed
+        config.raw_encoder = SimpleNamespace(enabled=False) 
+
+    return config
+
 
 def main():
     parser = argparse.ArgumentParser(description="Demonstrate Aperture-Token Bridge.")
@@ -47,9 +73,9 @@ def main():
                         help='Path to the trained model checkpoint.')
 
     # --- ADDITIONS: Arguments required for generation and multi-modal inference ---
-    parser.add_argument('--raw_text_input', type=str, default="The future of AI is",  # Set default closer to usage
+    parser.add_argument('--raw_text_input', type=str, default="The future of AI is",
                         help='Raw text prompt for generation.')
-    parser.add_argument('--max_new_tokens', type=int, default=20,  # Set default closer to usage
+    parser.add_argument('--max_new_tokens', type=int, default=20,
                         help='Maximum number of new tokens to generate.')
     parser.add_argument('--focus_strength', type=float, default=0.5,
                         help='Focus strength for non-linear output convergence (0.0 to 1.0).')
@@ -85,37 +111,8 @@ def main():
         print(f"Error loading config: {e}")
         sys.exit(1)
 
-    # FIX: Robust conversion to SimpleNamespace structure to prevent AttributeError later
-    config = SimpleNamespace(**config_dict)
-
-    if hasattr(config, 'model') and isinstance(config.model, dict):
-        config.model = SimpleNamespace(**config.model)
-
-    if hasattr(config, 'raw_encoder') and isinstance(config.raw_encoder, dict):
-        config.raw_encoder = SimpleNamespace(**config.raw_encoder)
-
-        if hasattr(config.raw_encoder, 'text') and isinstance(config.raw_encoder.text, dict):
-            config.raw_encoder.text = SimpleNamespace(**config.raw_encoder.text)
-
-        # Explicitly handle image/audio sections to ensure 'enabled' exists
-        if hasattr(config.raw_encoder, 'image') and isinstance(config.raw_encoder.image, dict):
-            config.raw_encoder.image = SimpleNamespace(**config.raw_encoder.image)
-        else:
-            config.raw_encoder.image = SimpleNamespace(enabled=False)
-
-        if hasattr(config.raw_encoder, 'audio') and isinstance(config.raw_encoder.audio, dict):
-            config.raw_encoder.audio = SimpleNamespace(**config.raw_encoder.audio)
-        else:
-            config.raw_encoder.audio = SimpleNamespace(enabled=False)  # THIS FIXES THE ERROR LINE 149
-
-    if hasattr(config, 'dynamic_resolution') and isinstance(config.dynamic_resolution, dict):
-        config.dynamic_resolution = SimpleNamespace(**config.dynamic_resolution)
-
-    if hasattr(config, 'output_convergence') and isinstance(config.output_convergence, dict):
-        config.output_convergence = SimpleNamespace(**config.output_convergence)
-
-    if hasattr(config, 'training') and isinstance(config.training, dict):
-        config.training = SimpleNamespace(**config.training)
+    # Use the helper function to structure the config and fix potential missing keys
+    config = _setup_config(config_dict)
 
     aperture_char_tokenizer = CharTokenizer()
     config.model.vocab_size = aperture_char_tokenizer.vocab_size
@@ -125,6 +122,7 @@ def main():
     # Load the trained APERTURE-LLM model
     if os.path.exists(args.model_path):
         try:
+            # Setting weights_only=False might trigger FutureWarning, which is suppressed globally
             aperture_model.load_state_dict(torch.load(args.model_path, map_location=device, weights_only=False))
             print(f"APERTURE-LLM loaded successfully from {args.model_path}")
         except RuntimeError as e:
@@ -174,15 +172,23 @@ def main():
     raw_image_input_gen = None
     raw_audio_input_gen = None
 
-    if config.raw_encoder.image.enabled and args.raw_image_input == 'dummy':
+    # Check configuration structure before accessing nested attributes for dummy inputs
+    image_enabled = hasattr(config, 'raw_encoder') and hasattr(config.raw_encoder, 'image') and config.raw_encoder.image.enabled
+    audio_enabled = hasattr(config, 'raw_encoder') and hasattr(config.raw_encoder, 'audio') and config.raw_encoder.audio.enabled
+    
+    if image_enabled and args.raw_image_input == 'dummy':
         # Load dummy image matching expected config shape (assuming batch size 1)
-        raw_image_input_gen = torch.randn(1, config.raw_encoder.image.input_shape[0],
-                                          config.raw_encoder.image.input_shape[1],
-                                          config.raw_encoder.image.input_shape[2], device=device)
+        # Requires config.raw_encoder.image.input_shape to be defined if enabled
+        if hasattr(config.raw_encoder.image, 'input_shape') and len(config.raw_encoder.image.input_shape) == 3:
+            raw_image_input_gen = torch.randn(1, config.raw_encoder.image.input_shape[0],
+                                              config.raw_encoder.image.input_shape[1],
+                                              config.raw_encoder.image.input_shape[2], device=device)
 
-    if config.raw_encoder.audio.enabled and args.raw_audio_input == 'dummy':
-    # Load dummy audio matching expected config shape
-        raw_audio_input_gen = torch.randn(1, config.raw_encoder.audio.num_samples, device=device)
+    if audio_enabled and args.raw_audio_input == 'dummy':
+        # Requires config.raw_encoder.audio.num_samples to be defined if enabled
+        if hasattr(config.raw_encoder.audio, 'num_samples'):
+             raw_audio_input_gen = torch.randn(1, config.raw_encoder.audio.num_samples, device=device)
+
 
     with torch.no_grad():
         generated_indices = aperture_model.generate(
